@@ -13,13 +13,13 @@ renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.localClippingEnabled = true;
 
 export const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x294b49, 34, 80);
-export const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 220);
+scene.fog = new THREE.Fog(0xd7c2a0, 34, 92);            // warm golden-hour haze fades the distant islets
+export const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 260);
 
 // Two lights: an angled key light shades the blocks (lit tops, darker sides) but casts no shadow;
 // a straight-down light casts every shadow, so a hovering piece's shadow sits exactly on the squares below it.
-scene.add(new THREE.HemisphereLight(0xc3e0eb, 0x37534b, 0.7));
-export const sun = new THREE.DirectionalLight(0xfff2de, 0.5);
+scene.add(new THREE.HemisphereLight(0xfff0d8, 0x51604a, 0.78));
+export const sun = new THREE.DirectionalLight(0xffd9a6, 0.6);
 sun.castShadow = false;
 scene.add(sun, sun.target);
 export const SUN_OFFSET = new THREE.Vector3(-7, 14, 5);
@@ -81,7 +81,7 @@ export function buildBaseplate() {
   const { w, d, x0, z0 } = baseRect();
   const cx = x0 + (w - 1) / 2, cz = z0 + (d - 1) / 2;
   const material = color => new THREE.MeshStandardMaterial({ color: lin(color), roughness: .9 });
-  const edge = material(0x29474c), garden = material(0x425f56), stone = material(0x889e86), leaf = material(0x728c70);
+  const edge = material(0x6e5a48), garden = material(0x6a8b4c), stone = material(0x889e86);
   const top = new THREE.MeshStandardMaterial({ map: cellTexture(), roughness: .9 });
   const radius = Math.hypot(w,d)/2+.9;
   const island = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius*.94, .7, 6), [edge,garden,edge]);
@@ -97,7 +97,6 @@ export function buildBaseplate() {
     box(x,-.01,z,.07,.7,.07,edge); box(x,.41,z,.18,.3,.18,amber);
     box(x,.58,z,.26,.06,.26,edge); box(x,.24,z,.23,.06,.23,edge);
     const light = new THREE.PointLight(0xffc078,.4,2.2,2); light.position.set(x,.48,z); baseGroup.add(light);
-    const tree = new THREE.Mesh(new THREE.ConeGeometry(.32,.85,5),leaf); tree.position.set(cx+side*(w/2+.45),.04,cz-d/2+.2); baseGroup.add(tree);
   }
 }
 const ground = new THREE.Mesh(new THREE.CircleGeometry(90, 48), new THREE.MeshStandardMaterial({ color: lin(0x385850), roughness: 1 }));

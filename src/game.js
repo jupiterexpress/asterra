@@ -7,6 +7,8 @@ import { Physics } from './physics.js';
 import { Movement } from './movement.js';
 import { Powers } from './powerups.js';
 import { scene, makeCube, lin, buildBaseplate } from './scene.js';
+import { refitScenery } from './scenery.js';
+import { Bonus } from './bonus.js';
 import { ghost, lane, updateGhost, updateLane } from './guides.js';
 import { fx, dustRing, flash, sliceFx, updateFx, vanish } from './fx.js';
 import { Cam } from './camera.js';
@@ -14,7 +16,7 @@ import { AudioFX } from './audio.js';
 import { S, freshBox, used, runTotal, speedMul } from './state.js';
 import { Tutorial } from './tutorial.js';
 import { Contract } from './contract.js';
-import { updateHUD, buildSegs, toast, hideHint, celebrate, endRun, meterEl, pauseEl, endEl, controlsEl } from './ui.js';
+import { updateHUD, buildSegs, toast, hideHint, celebrate, endRun, meterEl, pauseEl, endEl, controlsEl, coinPop, updateTileValue } from './ui.js';
 
 /* =====================================================================
    GAME — spawning, controls, dropping, trimming, landing, scoring
@@ -43,6 +45,7 @@ export function spawn(baseOverride = null) {
   root.scale.setScalar(0.01);
   scene.add(root);
   p.speedMul = speedMul(used());
+  p.value = Contract.active ? CFG.tileValue.start : null;     // tile value only exists on contracts
   S.piece = p; S.phase = 'aim'; S.queuedDrop = false;
   ghost.sig = ''; lane.key = '';
   updateHUD();
@@ -57,7 +60,7 @@ function visState(p) {
 
 
 export function rotatePiece(axis, angle, action = 'rotate') {
-  const p = S.piece; if (!p || S.phase !== 'aim') return;
+  const p = S.piece; if (!p || S.phase !== 'aim' || S.active.block) return;
   const { cells, s } = Poly.rotate(p.cells, axis, angle);
   const R = new THREE.Quaternion().setFromAxisAngle(axis, angle);
   p.q = R.clone().multiply(p.q);
@@ -75,7 +78,7 @@ export function rotateY() { rotatePiece(Y_AXIS, Math.PI / 2); }
 // facing as close as possible to how it was, so a FLIP never needs a ROTATE to undo it
 export function tip() {
   if (!CFG.rotate.allowTip) return;
-  const p = S.piece; if (!p || S.phase !== 'aim') return;
+  const p = S.piece; if (!p || S.phase !== 'aim' || S.active.block) return;
   if (p.stances.length < 2) { AudioFX.tone(260, 0.06, 'triangle', 0.05); return; }
   const cur = stanceKey(p.cells);
   let i = p.stances.findIndex(st => st.key === cur); if (i < 0) i = 0;
@@ -89,10 +92,11 @@ export function tip() {
 }
 
 export function turn() {
-  const p = S.piece; if (!p || S.phase !== 'aim') return;
+  const p = S.piece; if (!p || S.phase !== 'aim' || S.active.block) return;
   if (!canTurn(p)) { AudioFX.tone(180, 0.08, 'square', 0.05); return; }
   if (CFG.turn.meterCost > 0) S.meter -= CFG.turn.meterCost;
   Movement.turn(p);
+  if (S.active.freeze > 0) { p.t = Math.round(p.t); p.nudge.set(0, 0); }   // frozen tiles stay on the grid
   AudioFX.tone(520, 0.06, 'triangle', 0.09); AudioFX.tone(700, 0.06, 'triangle', 0.07, 0.04);
   hideHint(); updateHUD();
   Tutorial.onAction('axis');
@@ -106,18 +110,25 @@ export function canTurn(p) {
 
 
 // DROP: the whole piece falls intact. Trimming (if any) happens after it lands.
+
+// DROP is the only way a tile is placed: the DROP button or the Space key. Clicks on the scene never place.
 export function place() {
+  if (S.active.block) { Bonus.confirm(); return; }           // DROP confirms a bonus block while one is being aimed
   const p = S.piece; if (!p || S.phase !== 'aim') return;
   if (!Tutorial.canDrop(p)) return;
   AudioFX.unlock();
+  if (p.value != null && p.locked == null) p.locked = p.value; // the value is fixed the moment DROP is pressed
   if (S.pending > 0) { S.queuedDrop = true; return; }   // previous piece still settling: drop the moment it's done
+  endFreeze(p);
+  // Every cube is a full 1×1×1 cell on the grid: finish any arrival scale-up or rotation before the tile falls.
   p.anim = null; p.body.quaternion.identity(); p.body.position.set(0, 0, 0);
+  p.born = 1; p.root.scale.setScalar(1); p.nudge.set(0, 0);
   const [x, z] = Movement.snapped(p);
   const { comps, cut } = Area.split(p.cells, x, z);
   let land = Physics.findLanding(p.cells, x, z);
   if (land === null && cut.length) land = 0;             // fully outside: stop at plate level so the miss is visible
   p.pl = { total: 1, done: 0, stable: 0, allPerfect: true, trimmed: cut.length > 0, allTrimmed: comps.length === 0,
-           cutCount: cut.length, overhang: 0 };
+           cutCount: cut.length, overhang: 0, value: p.locked };
   // outcomes known at release: a full trim or a drop onto nothing will be a strike
   const willStrike = (comps.length === 0 && CFG.strikes.allTrimmed) || (land === null && !cut.length && CFG.strikes.miss);
   if (willStrike && (CFG.strikes.limit | 0) > 0) { p.pl.predicted = true; S.predicted++; }
@@ -126,7 +137,6 @@ export function place() {
              target: land === null ? null : land + 0.5, land };
   S.dropping.push(p); S.pending++;
   S.piece = null; S.phase = 'drop';
-  if (S.active.shadow > 0) S.active.shadow--;   // a Landing Shadow charge is spent per drop
   ghost.group.visible = false;
   hideHint();
   updateHUD();
@@ -292,8 +302,53 @@ function finishPlacement(pl) {
     if (lim > 0 && CFG.strikes[kind]) { S.strikes++; toast(label + ' · STRIKE ' + S.strikes + '/' + lim, 'bad'); }
     else toast(label, 'bad');
   }
+  if (pl.value != null) settleValue(pl.value, pl.stable > 0);
   updateHUD();
   if (Tutorial.mode === 'challenge') Tutorial.onPlacement(pl.stable > 0);
+}
+
+// Time-based coins: a landed tile pays what is left on its meter; below zero the value is charged instead.
+function settleValue(v, landed) {
+  const n = Math.round(v);
+  if (n > 0 && landed) { Contract.addCoins(n, 'Quick placement', 'quick'); coinPop('+' + n, 'gain'); }
+  else if (n < 0) { Contract.addCoins(n, 'Slow placement', 'penalty'); coinPop('\u2212' + (-n), 'loss'); }
+}
+
+// a tile whose value runs down to the expiry point is lost: it counts as a missed placement
+function expireTile() {
+  const p = S.piece; if (!p) return;
+  endFreeze(p);
+  vanish(p); S.piece = null; S.phase = 'wait'; S.waitT = CFG.spawnDelay; S.queuedDrop = false;
+  ghost.group.visible = false;
+  S.fell++;
+  const n = Math.round(CFG.tileValue.expireAt);
+  if (n < 0) { Contract.addCoins(n, 'Tile expired', 'penalty'); coinPop('\u2212' + (-n), 'loss'); }
+  const lim = CFG.strikes.limit | 0;
+  if (lim > 0 && CFG.strikes.miss) { S.strikes++; toast('TILE EXPIRED · STRIKE ' + S.strikes + '/' + lim, 'bad'); }
+  else toast('TILE EXPIRED', 'bad');
+  AudioFX.fall();
+  updateHUD();
+}
+
+/* Freeze Time: the tile holds still on the grid and its value stops draining. A / D step it along its line. */
+const ICE = new THREE.Color(0x8fd3e8);
+export function startFreeze(seconds) {
+  const p = S.piece; if (!p || S.phase !== 'aim') return false;
+  S.active.freeze = seconds;
+  p.t = Math.round(p.t); p.nudge.set(0, 0);
+  p.mat.emissive.copy(ICE); p.mat.emissiveIntensity = 0.28;
+  return true;
+}
+function endFreeze(p) {
+  if (!(S.active.freeze > 0)) return;
+  S.active.freeze = 0;
+  if (p) { p.mat.emissive.setHex(0x000000); p.mat.emissiveIntensity = 0; }
+}
+export function nudgeTile(dir) {
+  const p = S.piece; if (!p || S.phase !== 'aim' || !(S.active.freeze > 0) || S.active.block) return;
+  const t = Math.min(p.hi, Math.max(p.lo, Math.round(p.t) + dir));
+  if (t === Math.round(p.t)) { AudioFX.tone(220, 0.05, 'triangle', 0.04); return; }
+  p.t = t; AudioFX.tick();
 }
 
 function addMeter(pts, text, kind) {
@@ -322,7 +377,18 @@ function updatePiece(dt) {
   if (p.anim) { p.anim.t += dt; if (p.anim.t >= p.anim.dur) p.anim = null; }
   const { Q, V } = visState(p);
   p.body.quaternion.copy(Q); p.body.position.copy(V);
-  Movement.update(p, dt * (S.active.slow > 0 ? .5 : 1));
+  if (S.active.block) { /* aiming a bonus block: the tile waits, its value paused */ }
+  else if (S.active.freeze > 0) {
+    S.active.freeze = Math.max(0, S.active.freeze - dt);
+    if (!S.active.freeze) endFreeze(p);
+  } else {
+    Movement.update(p, dt);
+    if (p.value != null && p.locked == null) {
+      p.value -= Math.max(0, CFG.tileValue.drainPerSec) * dt;
+      if (p.value <= CFG.tileValue.expireAt && !S.queuedDrop) { p.value = CFG.tileValue.expireAt; updateTileValue(); expireTile(); return; }
+    }
+  }
+  updateTileValue();
   const [x, z] = Movement.xz(p);
   p.nudge.multiplyScalar(Math.exp(-18 * dt));
   p.hoverY += (hoverBaseY() - p.hoverY) * (1 - Math.exp(-6 * dt));
@@ -374,7 +440,8 @@ export function reset(keepTutorial = false) {
   if (S.piece) { scene.remove(S.piece.root); S.piece.mat.dispose(); }
   for (const b of S.dropping) { scene.remove(b.root); b.mat.dispose(); }
   for (const t of S.trims) { scene.remove(t.b.root); t.b.mat.dispose(); }
-  Object.assign(S, { phase: 'wait', piece: null, waitT: 0.3, meter: 0, inv: { shadow: 0 }, active: { shadow: 0, slow: 0, view: 0 }, tileQueue: [],
+  Bonus.cancel(true);
+  Object.assign(S, { phase: 'wait', piece: null, waitT: 0.3, meter: 0, active: { shadow: 0, freeze: 0, block: false }, tileQueue: [],
     placed: 0, fell: 0, perfects: 0, pieces: [], falling: [], cubes: 0, box: freshBox(), endT: 0, dropping: [], trims: [], pending: 0, queuedDrop: false, predicted: 0,
     strikes: 0, paused: false, celebrateUntil: 0 });
   pauseEl.hidden = true;
@@ -384,7 +451,7 @@ export function reset(keepTutorial = false) {
   const seed = CFG.seed ? CFG.seed : (Math.random() * 2 ** 31) | 0;
   setSeed(seed); S.seed = seed;
   Movement.axisFlip = 0;
-  World.reset(); buildBaseplate(); buildSegs(); updateHUD();
+  World.reset(); buildBaseplate(); refitScenery(); buildSegs(); updateHUD(); updateTileValue();
   ghost.group.visible = false; ghost.sig = ''; lane.key = '';
 }
 
@@ -405,7 +472,7 @@ export function step(dt) {
   if (S.screen) return;
   if (S.phase === 'finishing') { Contract.tick(dt); Cam.update(dt); return; }
   if (S.phase === 'over') { Cam.update(dt); return; }
-  Powers.tick(dt); Powers.update();
+  Powers.update();
   if (Tutorial.mode === 'overview' || Tutorial.mode === 'complete') { Cam.update(dt); return; }
   if (Tutorial.mode === 'challenge') {
     if (S.phase === 'aim') updatePiece(dt);
@@ -417,7 +484,8 @@ export function step(dt) {
   const out = lim > 0 && S.strikes >= lim;
   // safety net: a strike that only resolved after the next piece appeared still ends the run now
   if (out && S.phase === 'aim' && S.piece) { vanish(S.piece); S.piece = null; S.phase = 'wait'; S.queuedDrop = false; }
-  if (S.phase === 'wait') {
+  if (S.active.block) Bonus.update(clock);
+  if (S.phase === 'wait' && !S.active.block) {
     S.waitT -= dt;
     const outSoon = lim > 0 && S.strikes + S.predicted >= lim;   // the piece in flight is a known final strike
     const settled = S.falling.length === 0 && S.pending === 0;
@@ -428,11 +496,12 @@ export function step(dt) {
   if (S.phase === 'aim') updatePiece(dt);
   updateDropping(dt);
   updateTrims(dt);
-  if (S.queuedDrop && S.pending === 0) { S.queuedDrop = false; place(); }
+  if (S.queuedDrop && S.pending === 0 && !S.active.block) { S.queuedDrop = false; place(); }
   updateFalling(dt);
   updateFx(dt);
   if (Contract.checkCompletion()) endRun('complete');
   updateGhost(clock);
   updateLane(clock);
+  updateTileValue();
   Cam.update(dt);
 }

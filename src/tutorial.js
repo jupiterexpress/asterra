@@ -24,11 +24,11 @@ for (const [x, , z] of target) {
 marker.visible = false; scene.add(marker);
 
 const hints = [
-  ['Look at the tile’s height compared with the flat target.', 'Try FLIP to lay the tile flat.'],
-  ['The tile is flat, but its long side points another way.', 'Try ROTATE to turn its footprint.'],
-  ['The tile needs to travel along the target’s row.', 'Use AXIS near the center of the plate.'],
+  ['Look at the tile’s height compared with the flat target.', 'Try FLIP (F) to lay the tile flat.'],
+  ['The tile is flat, but its long side points another way.', 'Try ROTATE (R) to turn its footprint.'],
+  ['The tile needs to travel along the target’s row.', 'Use AXIS (X) near the center of the plate.'],
   ['Watch for the tile to pass over the glowing squares.', 'Wait until the tile covers the glowing squares.'],
-  ['The tile is lined up with the target.', 'Press DROP now.'],
+  ['The tile is lined up with the target.', 'Press DROP (Space) now.'],
 ];
 
 export const Tutorial = {
@@ -43,6 +43,7 @@ export const Tutorial = {
     this.prepare();
     this.api.reset(true);
     this.mode = 'overview';
+    this.api.update?.();
     $('tutorialOverview').hidden = false;
     $('controls').hidden = true;
     $('tutorialChallenge').hidden = true;
@@ -64,6 +65,7 @@ export const Tutorial = {
     $('controls').hidden = false;
     $('tutorialHint').hidden = true;
     $('tutorialStatus').textContent = 'Match the glowing footprint. DROP when it lines up.';
+    this.api.update?.();
   },
   clear() {
     if (this.savedCfg) {
@@ -109,7 +111,7 @@ export const Tutorial = {
       if (stage > this.stage && stage < 4) this.idle = 0;
       this.stage = stage;
       $('tutorialHint').hidden = true;
-      $('tutorialStatus').textContent = stage === 4 ? 'That fits! Press DROP.' : 'Match the glowing footprint. DROP when it lines up.';
+      $('tutorialStatus').textContent = stage === 4 ? 'That fits! Press DROP (Space).' : 'Match the glowing footprint. DROP when it lines up.';
     }
     this.idle += dt;
     const level = this.idle >= 13 ? 1 : this.idle >= 6 ? 0 : -1;
@@ -128,6 +130,6 @@ export const Tutorial = {
   },
   proceed() {
     try { localStorage.setItem('polycube-tutorial-complete', '1'); } catch (_) { /* private storage */ }
-    this.api.startContract();
+    this.api.home();
   },
 };

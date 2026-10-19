@@ -86,3 +86,20 @@ The prototype includes the core stacking interaction, Asterra opening story, gui
 
 - On a narrow phone, the stats line can be wider than the screen and get cut off at the right.
 - Topples can feel arbitrary; a short teeter before falling, or slightly more forgiving stability, has been suggested.
+
+## Desktop browser update (Oct 18, 2026)
+
+- **Platform:** designed for desktop browsers, mouse + keyboard. Top bar: contract panel (left, in normal layout flow so text can't collide) · large power meter (centre) · coin balance, pause, tuning (right). Bottom dock: tile value meter over FLIP · ROTATE · AXIS · POWERUPS · DROP, each showing its key.
+- **Keys:** R rotate · F flip · X switch axis · Space drop · Q powerups (1/2/3 to pick) · C coins · P / Esc pause · arrow keys orbit · A / D step a frozen tile. Cmd/Ctrl/Alt combos go to the browser; held keys don't repeat actions; a mouse press never leaves focus on a game button, so Space always drops.
+- **Placement:** only DROP / Space places a tile. Clicking or dragging the scene only moves the camera (tap-to-place removed).
+- **Blocks:** every cube is the same 1×1×1 cell on the grid. Dropping a tile during its arrival scale-up used to freeze it small and off-grid; DROP now completes the arrival first.
+- **Scenery:** island props are re-fitted to each blueprint's island and set down using each model's measured base, so nothing floats past the grass or sinks.
+- **Tile value (contracts only):** each tile starts at +100 coins and drains `tileValue.drainPerSec` (default 10/s: 0 at 10 s, expiry at 15 s). The value locks when DROP is pressed. A landed tile pays a positive value; a negative value is charged whether or not it lands; at −50 the tile expires as a missed placement (strike) and the −50 is charged. The balance floors at 0 (`tileValue.allowNegativeBalance`). All tunable in the tuning panel. Placeholder numbers, not final rules.
+- **Coins:** one balance (◈) for building rewards and tile-value earnings/charges, saved after every change. Coins page (C or the coin chip) shows the balance, how to earn, and recent activity. No shop yet.
+- **Powerups** (perfect drops fill a 4-segment meter; using one resets it): Tile Choice (5 options, pick next 3), Freeze Time (8 s: tile and its value stop; ROTATE/FLIP/AXIS still work; A/D step it a cell), Add 1×1 Block (aim with mouse or arrows, Space places it in the lowest open supported cell of that column, so it can fill a gap under an overhang; Esc cancels and keeps the powerup). Landing Shadow, Slow Speed and View/Zoom removed. When ready, the meter glows and the button pulses, glows and shakes; browsers with the Vibration API also buzz.
+- **Start-up:** returning players go to their next contract (or the neighbourhood screen once all three are done). New players still start with the tutorial.
+
+## Home hub, economy and auto-finish (Oct 18, 2026)
+- **Home** (`src/home.js`): new players go welcome story -> how to play -> home; returning players (any saved progress) open home. A winding path shows the three contracts as done (check + grade), current (highlighted, START/CONTINUE bubble) or locked. The check animation plays once per newly finished contract (`asterra-home-seen`). Shop is a "coming soon" placeholder; View City opens the neighborhood card. New Game / Reset Progress asks for confirmation and erases only `asterra-*` / `polycube-*` keys. No accounts or backend: progress lives in localStorage (`asterra-progress-v2`).
+- **Rewards**: contract reward = blueprint cells x `CFG.reward.perCell[grade]` x `CFG.reward.contractBonus[contract]` (A+ 150, A 110, B 70, C 40, D 15 per cell; bonus 1 / 1.2 / 1.4). A+ pays more than the most quick placements can (tiles x 100). All per-grade values are in the tuning panel. Results show quick placements, density reward, penalties and total.
+- **Auto-finish**: when every unfilled blueprint cell is covered by a block above it (a hole under an overhang) and the power meter is not full, the build finishes ("No tile can reach the last gaps"). A full meter keeps play going because Add 1x1 Block can still reach those holes.

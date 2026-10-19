@@ -1,5 +1,5 @@
 {
-  "name": "polycube-stacker",
+  "name": "polycube-web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,10 +7,8 @@
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
-    "preview": "vite preview --port 4173 --strictPort",
-    "test": "vite build && playwright test",
-    "ios": "vite build && cap sync ios && cap open ios",
-    "sync": "vite build && cap sync"
+    "preview": "vite preview --port 4175 --strictPort",
+    "test": "vite build && playwright test"
   },
   "dependencies": {
     "@capacitor/core": "^8.5.2",

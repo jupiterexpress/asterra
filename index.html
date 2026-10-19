@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#102a32">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Asterra · Build a new beginning</title>
 </head>
 <body>
 <div id="app">
-  <canvas id="scene" aria-label="3D build area. Drag to change the camera angle."></canvas>
+  <canvas id="scene" aria-label="3D build area. Drag to orbit the camera, scroll to zoom."></canvas>
 
   <section id="opening" class="opening" hidden role="dialog" aria-modal="true" aria-labelledby="openingTitle">
     <canvas id="openingCanvas" aria-label="A miniature geometric city under a moonlit sky"></canvas>
@@ -30,6 +30,49 @@
     <div class="opening-progress" id="openingProgress" aria-label="Opening progress"></div>
   </section>
 
+
+  <section id="home" class="home" hidden aria-labelledby="homeGreeting">
+    <div class="home-shell">
+      <header class="home-top">
+        <span class="asterra-wordmark">✧ ASTERRA</span>
+        <div class="home-progress" aria-label="Contracts built"><span id="homeCount">0 / 3 BUILT</span><div class="home-progress-track"><div id="homeMeter"></div></div></div>
+        <button class="coin-chip chip home-coins" id="homeCoins" aria-label="Your coins"><span class="coin-glyph" aria-hidden="true">◈</span><b id="homeCoinBalance">0</b><small>COINS</small></button>
+      </header>
+      <div class="home-body">
+        <div class="home-path-col">
+          <div class="home-path" id="homePath" role="list" aria-label="Your building contracts"></div>
+          <p class="home-note" id="homeNote" aria-live="polite"></p>
+        </div>
+        <aside class="home-side">
+          <span class="tutorial-kicker">ASTERRA REBUILDING OFFICE</span>
+          <h1 id="homeGreeting">Welcome back.</h1>
+          <p id="homeSummary"></p>
+          <section class="home-next" id="homeNext" aria-labelledby="homeNextTitle">
+            <span class="hn-kicker" id="homeNextKicker">NEXT UP</span>
+            <h2 id="homeNextTitle"></h2>
+            <div class="blueprint-art home-art" id="homeNextArt" aria-hidden="true"></div>
+            <p id="homeNextText"></p>
+            <div class="contract-specs" id="homeNextSpecs"><div><span>YOUR TARGET</span><strong id="homeNextTarget"></strong></div><div><span>MATERIALS</span><strong id="homeNextTiles"></strong></div></div>
+            <button class="story-primary" id="homeContinue">CONTINUE BUILDING <span aria-hidden="true">→</span></button>
+          </section>
+          <nav class="home-nav" aria-label="More places">
+            <button class="home-nav-btn" id="homeShop" disabled aria-describedby="homeShopNote"><span class="hnav-glyph" aria-hidden="true">◇</span><strong>SHOP</strong><small id="homeShopNote">Coming soon</small></button>
+            <button class="home-nav-btn" id="homeCity" aria-describedby="homeCityNote"><span class="hnav-glyph" aria-hidden="true">⌂</span><strong>VIEW CITY</strong><small id="homeCityNote"></small></button>
+          </nav>
+          <button class="home-reset" id="homeReset">NEW GAME · RESET PROGRESS</button>
+        </aside>
+      </div>
+    </div>
+    <div class="home-confirm" id="homeConfirm" hidden>
+      <section class="tutorial-card home-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="resetTitle" aria-describedby="resetText">
+        <span class="tutorial-kicker">NEW GAME</span>
+        <h2 id="resetTitle">START OVER?</h2>
+        <p id="resetText"></p>
+        <button class="story-primary" id="resetCancel">KEEP MY PROGRESS <kbd>ESC</kbd></button>
+        <button class="home-danger" id="resetConfirm">ERASE PROGRESS AND START OVER</button>
+      </section>
+    </div>
+  </section>
   <div id="contractBrief" class="tutorial-screen contract-screen" hidden>
     <section class="tutorial-card contract-card chip" role="dialog" aria-modal="true" aria-labelledby="contractTitle">
       <span class="tutorial-kicker" id="contractKicker">ASTERRA REBUILDING OFFICE · 1 OF 3</span>
@@ -39,12 +82,8 @@
       <div class="contract-specs"><div><span>YOUR TARGET</span><strong id="contractTarget"></strong></div><div><span>MATERIALS</span><strong id="contractTiles"></strong></div></div>
       <p id="contractLesson"></p>
       <button class="btn tutorial-primary" id="contractAccept">ACCEPT CONTRACT →</button>
+      <button class="sheet-cancel" id="contractBack">← BACK TO HOME <kbd>ESC</kbd></button>
     </section>
-  </div>
-  <div id="contractHUD" class="contract-hud chip" hidden>
-    <div class="contract-hud-heading"><span id="contractName"></span><span id="contractWallet"></span></div>
-    <div class="contract-progress-row"><div class="contract-progress-track"><div id="contractProgress"></div></div><strong id="contractDensity">0% FILLED</strong></div>
-    <span id="contractObjective"></span><button id="finishBuild" hidden>FINISH BUILDING ✧</button>
   </div>
   <div id="activePowers" class="active-powers" hidden aria-live="polite"></div>
   <div id="buildReveal" class="build-reveal" role="status" hidden></div>
@@ -52,9 +91,9 @@
   <div class="power-modal" id="powerPicker" hidden>
     <section class="power-sheet" role="dialog" aria-modal="true" aria-labelledby="powerTitle">
       <span class="tutorial-kicker">PERFECT PLACEMENTS PAID OFF</span>
-      <h2 id="powerTitle">A LITTLE HELP?</h2><p>Choose one powerup. Your meter resets when you use it.</p>
+      <h2 id="powerTitle">A LITTLE HELP?</h2><p>Choose one powerup. Your power meter resets when you use it.</p>
       <div id="powerOptions"></div>
-      <button class="sheet-cancel" id="closePowers">SAVE IT FOR LATER</button>
+      <button class="sheet-cancel" id="closePowers">SAVE IT FOR LATER <kbd>ESC</kbd></button>
     </section>
   </div>
   <div class="power-modal" id="tilePicker" hidden>
@@ -64,24 +103,36 @@
       <div id="tileOptions" class="tile-options"></div>
       <p id="tileSelection" aria-live="polite"></p>
       <button class="story-primary" id="confirmTiles" disabled>QUEUE 0 / 3 TILES</button>
-      <button class="sheet-cancel" id="cancelTiles">BACK TO POWERUPS</button>
+      <button class="sheet-cancel" id="cancelTiles">BACK TO POWERUPS <kbd>ESC</kbd></button>
     </section>
   </div>
   <div id="districtDone" class="tutorial-screen" hidden>
     <section class="tutorial-card district-card" role="dialog" aria-modal="true" aria-labelledby="districtTitle">
-      <span class="tutorial-kicker">THREE CONTRACTS · ONE NEW NEIGHBORHOOD</span>
-      <h1 id="districtTitle">LOOK WHAT YOU BUILT.</h1><p>Your buildings. Your shapes. Asterra is coming back to life.</p>
+      <span class="tutorial-kicker" id="districtKicker">THREE CONTRACTS · ONE NEW NEIGHBORHOOD</span>
+      <h1 id="districtTitle">LOOK WHAT YOU BUILT.</h1><p id="districtLead">Your buildings. Your shapes. Asterra is coming back to life.</p>
       <div id="districtBuildings"></div><p id="districtCoins"></p>
-      <button class="btn tutorial-primary" id="districtReplay">BUILD THE NEIGHBORHOOD AGAIN</button>
+      <button class="btn tutorial-primary" id="districtHome">BACK TO HOME</button>
+      <button class="sheet-cancel" id="districtReplay">BUILD THE NEIGHBORHOOD AGAIN</button>
     </section>
   </div>
 
   <div class="hud-top">
-    <div class="meter chip" id="meter">
-      <div class="meter-label">POWER <em id="meterNum">0/6</em></div>
+    <div class="hud-left">
+      <div class="day-chip" id="dayLabel"></div>
+      <div class="stats chip" id="stats" aria-live="polite"></div>
+      <div id="contractHUD" class="contract-hud chip" hidden>
+        <div class="contract-hud-heading"><span id="contractName"></span></div>
+        <div class="contract-stats" id="contractStats" aria-live="polite"></div>
+        <div class="contract-progress-row"><div class="contract-progress-track"><div id="contractProgress"></div></div><strong id="contractDensity">0% FILLED</strong></div>
+        <span id="contractObjective"></span><button id="finishBuild" hidden>FINISH BUILDING ✧</button>
+      </div>
+    </div>
+    <div class="meter chip" id="meter" role="group" aria-label="Power meter">
+      <div class="meter-label"><span>POWER</span><em id="meterNum">0/4</em><small id="meterHint">Perfect drops charge it</small></div>
       <div class="segs" id="segs"></div>
     </div>
     <div class="top-btns">
+      <button class="coin-chip chip" id="coinBtn" aria-label="Coins (keyboard C)"><span class="coin-glyph" aria-hidden="true">◈</span><b id="coinBalance">0</b><kbd aria-hidden="true">C</kbd></button>
       <button class="gear chip" id="pauseBtn" aria-label="Pause (keyboard P or Esc)">
         <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
       </button>
@@ -89,52 +140,81 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
       </button>
     </div>
-    <div class="stats chip" id="stats" aria-live="polite"></div>
   </div>
-
+  <div class="coin-pop" id="coinPop" aria-live="polite"></div>
   <div class="toast" id="toast"></div>
-  <div class="hint" id="hint">Drag to change camera angle · Axis changes direction · Drop to place</div>
+  <div class="hint" id="hint">Drag to orbit · Scroll to zoom · R rotate · F flip · X axis · Space drop</div>
 
   <div class="controls" id="controls">
-    <div class="left-stack">
-      <button class="btn tip chip" id="tipBtn" aria-label="Flip piece over (keyboard T)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M12.5 21l-5-5 5-5 5 5z"/><path d="M5 9a7 7 0 0 1 9-5"/><path d="M11.5 2.2l2.6 1.9-1.9 2.6"/></svg>
-        FLIP
-      </button>
-      <button class="btn rotate" id="rotBtn" aria-label="Rotate piece (keyboard R)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v5h-5"/></svg>
-        ROTATE
-      </button>
+    <div class="tile-value" id="tileValue" hidden role="meter" aria-label="Current tile value" aria-valuemin="-50" aria-valuemax="100">
+      <div class="tv-head"><span>TILE VALUE</span><b id="tvAmount">+100 ◈</b><small id="tvNote">Drop fast to earn more</small></div>
+      <div class="tv-track"><div class="tv-fill" id="tvFill"></div><i class="tv-zero" id="tvZero"></i></div>
     </div>
-    <button class="btn power empty" id="powerBtn" aria-label="Choose a powerup" disabled></button>
-    <div class="right-stack">
-      <button class="btn turn" id="turnBtn" aria-label="Change travel axis (keyboard E)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M6 9l-3 3 3 3M18 9l3 3-3 3"/><path d="M12 3v18M9 6l3-3 3 3M9 18l3 3 3-3"/></svg>
-        <span id="turnLabel">AXIS</span>
-      </button>
-      <button class="btn place" id="placeBtn" aria-label="Drop piece (keyboard Space)">
+    <div class="dock">
+      <div class="dock-group">
+        <button class="btn tip chip" id="tipBtn" aria-label="Flip tile over (keyboard F)">
+          <kbd aria-hidden="true">F</kbd>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M12.5 21l-5-5 5-5 5 5z"/><path d="M5 9a7 7 0 0 1 9-5"/><path d="M11.5 2.2l2.6 1.9-1.9 2.6"/></svg>
+          FLIP
+        </button>
+        <button class="btn rotate" id="rotBtn" aria-label="Rotate tile (keyboard R)">
+          <kbd aria-hidden="true">R</kbd>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v5h-5"/></svg>
+          ROTATE
+        </button>
+        <button class="btn turn" id="turnBtn" aria-label="Switch travel axis (keyboard X)">
+          <kbd aria-hidden="true">X</kbd>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M6 9l-3 3 3 3M18 9l3 3-3 3"/><path d="M12 3v18M9 6l3-3 3 3M9 18l3 3 3-3"/></svg>
+          <span id="turnLabel">AXIS</span>
+        </button>
+      </div>
+      <button class="btn power empty" id="powerBtn" aria-label="Choose a powerup (keyboard Q)" disabled></button>
+      <button class="btn place" id="placeBtn" aria-label="Drop tile (keyboard Space)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15M6 13l6 6 6-6"/></svg>
         DROP
+        <kbd aria-hidden="true">SPACE</kbd>
       </button>
     </div>
   </div>
-
   <div class="end" id="end" hidden>
     <div class="end-card chip" role="dialog" aria-labelledby="endTitle">
       <h2 id="endTitle">BUILD COMPLETE</h2>
       <p class="sub" id="endSub"></p>
       <div class="end-grid" id="endGrid"></div>
-      <button class="btn tutorial-primary" id="nextContract" hidden>NEXT CONTRACT →</button>
+      <button class="btn tutorial-primary" id="nextContract" hidden>CONTINUE →</button>
+      <button class="btn share" id="shareBtn" hidden>SHARE RESULT</button>
       <button class="btn again" id="againBtn">BUILD AGAIN</button>
+      <button class="btn again" id="endHome" hidden>BACK TO HOME</button>
     </div>
   </div>
 
+  <div class="power-modal coins-modal" id="coinsPage" hidden>
+    <section class="power-sheet coins-sheet" role="dialog" aria-modal="true" aria-labelledby="coinsTitle">
+      <span class="tutorial-kicker">ASTERRA REBUILDING OFFICE · YOUR ACCOUNT</span>
+      <h2 id="coinsTitle">YOUR COINS</h2>
+      <div class="coins-balance"><span aria-hidden="true">◈</span><b id="coinsTotal">0</b><small>COINS</small></div>
+      <div class="coins-ways">
+        <div><strong>Finished buildings</strong><span>Every completed contract pays coins. Denser buildings earn more.</span></div>
+        <div><strong>Quick placements</strong><span>Each tile starts at +100 and counts down. Drop it fast to keep more. Slow tiles cost coins.</span></div>
+      </div>
+      <h3>RECENT</h3>
+      <ul id="coinsLedger" class="coins-ledger"></ul>
+      <button class="story-primary" id="closeCoins">BACK TO BUILDING <kbd>ESC</kbd></button>
+    </section>
+  </div>
   <div class="pause" id="pause" hidden>
     <div class="pause-card chip" role="dialog" aria-labelledby="pauseTitle">
       <h2 id="pauseTitle">PAUSED</h2>
-      <p>Drag to change camera angle</p>
-      <button class="btn resume" id="resumeBtn">RESUME</button>
+      <p>Drag to orbit · scroll to zoom · arrow keys turn the view</p>
+      <dl class="keys">
+        <div><dt><kbd>R</kbd></dt><dd>Rotate</dd></div><div><dt><kbd>F</kbd></dt><dd>Flip</dd></div>
+        <div><dt><kbd>X</kbd></dt><dd>Switch axis</dd></div><div><dt><kbd>SPACE</kbd></dt><dd>Drop</dd></div>
+        <div><dt><kbd>Q</kbd></dt><dd>Powerups</dd></div><div><dt><kbd>C</kbd></dt><dd>Coins</dd></div>
+        <div><dt><kbd>P</kbd> <kbd>ESC</kbd></dt><dd>Pause</dd></div><div><dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Step a frozen tile</dd></div>
+      </dl>
+      <button class="btn resume" id="resumeBtn">RESUME <kbd>ESC</kbd></button>
       <button class="btn" id="pRestartBtn">RESTART</button>
+      <button class="btn" id="pHomeBtn">HOME</button>
       <button class="btn" id="tutorialReplay">HOW TO PLAY</button>
       <button class="btn" id="openingReplay">MEET ASTERRA</button>
       <button class="btn" id="pTuneBtn">TUNING</button>
@@ -156,11 +236,11 @@
     <div class="tutorial-card chip" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
       <span class="tutorial-kicker">ASTERRA · CONTRACTOR TRAINING</span>
       <h1 id="tutorialTitle">HOW TO PLAY</h1>
-      <p>Watch what each control does. Then solve a small placement challenge.</p>
+      <p>Watch what each control does. Each one has a key. Then solve a small placement challenge.</p>
       <div class="tutorial-demos">
         <div class="tutorial-demo"><div class="demo-stage"><svg viewBox="0 0 110 80" aria-hidden="true"><g class="demo-tile demo-rotate"><rect x="33" y="30" width="18" height="18"/><rect x="52" y="30" width="18" height="18"/><rect x="71" y="30" width="18" height="18"/><rect x="71" y="49" width="18" height="18"/></g></svg></div><strong>ROTATE</strong><span>Turn the tile on the plate</span><kbd>R</kbd></div>
-        <div class="tutorial-demo"><div class="demo-stage"><svg viewBox="0 0 110 80" aria-hidden="true"><g class="demo-tile demo-flip"><rect x="32" y="31" width="18" height="18"/><rect x="51" y="31" width="18" height="18"/><rect x="70" y="31" width="18" height="18"/><rect x="70" y="50" width="18" height="18"/></g></svg></div><strong>FLIP</strong><span>Change which side rests down</span><kbd>T</kbd></div>
-        <div class="tutorial-demo"><div class="demo-stage"><svg viewBox="0 0 110 80" aria-hidden="true"><path class="demo-path" d="M13 38h84M55 8v64"/><g class="demo-tile demo-axis"><rect x="37" y="29" width="17" height="17"/><rect x="55" y="29" width="17" height="17"/><rect x="55" y="47" width="17" height="17"/></g></svg></div><strong>AXIS</strong><span>Switch the travel direction</span><kbd>E</kbd></div>
+        <div class="tutorial-demo"><div class="demo-stage"><svg viewBox="0 0 110 80" aria-hidden="true"><g class="demo-tile demo-flip"><rect x="32" y="31" width="18" height="18"/><rect x="51" y="31" width="18" height="18"/><rect x="70" y="31" width="18" height="18"/><rect x="70" y="50" width="18" height="18"/></g></svg></div><strong>FLIP</strong><span>Change which side rests down</span><kbd>F</kbd></div>
+        <div class="tutorial-demo"><div class="demo-stage"><svg viewBox="0 0 110 80" aria-hidden="true"><path class="demo-path" d="M13 38h84M55 8v64"/><g class="demo-tile demo-axis"><rect x="37" y="29" width="17" height="17"/><rect x="55" y="29" width="17" height="17"/><rect x="55" y="47" width="17" height="17"/></g></svg></div><strong>AXIS</strong><span>Switch the travel direction</span><kbd>X</kbd></div>
         <div class="tutorial-demo"><div class="demo-stage"><svg viewBox="0 0 110 80" aria-hidden="true"><g class="demo-target"><rect x="36" y="55" width="18" height="18"/><rect x="55" y="55" width="18" height="18"/></g><g class="demo-tile demo-drop"><rect x="36" y="18" width="18" height="18"/><rect x="55" y="18" width="18" height="18"/></g></svg></div><strong>DROP</strong><span>Place the tile where it is</span><kbd>SPACE</kbd></div>
       </div>
       <button class="btn tutorial-primary" id="tutorialStart">TRY IT</button>
@@ -179,8 +259,8 @@
     <div class="tutorial-card tutorial-finish chip" role="dialog" aria-modal="true" aria-labelledby="tutorialDoneTitle">
       <span class="tutorial-kicker">PRACTICE COMPLETE</span>
       <h2 id="tutorialDoneTitle">NICE FIT.</h2>
-      <p>You matched the target. Your first building contract is ready.</p>
-      <button class="btn tutorial-primary" id="tutorialContinue">VIEW FIRST CONTRACT</button>
+      <p>You matched the target. Your building contracts are waiting.</p>
+      <button class="btn tutorial-primary" id="tutorialContinue">SEE YOUR CONTRACTS →</button>
     </div>
   </div>
 </div>

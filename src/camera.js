@@ -7,7 +7,7 @@ import { hideHint } from './ui.js';
 import { S } from './state.js';
 
 /* =====================================================================
-   CAMERA — one-finger orbit, pinch zoom. Independent of the piece.
+   CAMERA — mouse-drag / one-finger orbit, wheel / pinch zoom. Independent of the piece.
    ===================================================================== */
 export const Cam = {
   yaw: CFG.camera.yaw, pitch: CFG.camera.pitch, goalYaw: CFG.camera.yaw, goalPitch: CFG.camera.pitch, zoom: 1,
@@ -55,7 +55,7 @@ export const Cam = {
   // worst case over all drag angles, cached until the build (or screen shape, or settings) changes
   fixedFit(b, target) {
     const key = [b.minX, b.maxX, b.minZ, b.maxZ, b.topY, target.y.toFixed(2), CFG.move.margin, CFG.move.hoverGap, CFG.camera.ring,
-      CFG.camera.pitchMin, CFG.camera.pitchMax, camera.aspect.toFixed(3), camera.fov].join();
+      CFG.camera.pitchMin, CFG.camera.pitchMax, camera.aspect.toFixed(3), camera.fov, this.safe?.top, this.safe?.bottom].join();
     if (this._fitKey === key) return this._fitVal;
     let d = 0;
     const pMin = CFG.camera.pitchMin, pMax = CFG.camera.pitchMax;
@@ -66,6 +66,8 @@ export const Cam = {
   },
   ringFit(b, target, yaw, pitch) {
     const pad = CFG.move.margin + 1.5;
+    // keep clear of the HUD panels measured by main.js (screen fractions in clip space)
+    const yT = Math.min(0.6, this.safe?.top ?? 0.6), yB = Math.max(-0.7, this.safe?.bottom ?? -0.7);
     const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
     const r = Math.hypot((b.maxX - b.minX + 1) / 2 + pad, (b.maxZ - b.minZ + 1) / 2 + pad) * CFG.camera.ring;
     const yTop = b.topY + 1 + CFG.move.hoverGap + 2;
@@ -78,12 +80,12 @@ export const Cam = {
       // pieces travel at hover height: keep that ring in view; the structure itself only needs its box in view
       for (let a = 0; a < 16 && ok; a++) for (const y of [yTop - 2, yTop]) {
         const v = this._v.set(cx + Math.cos(a * Math.PI / 8) * r, y, cz + Math.sin(a * Math.PI / 8) * r).project(fc);
-        if (v.z > 1 || Math.abs(v.x) > 0.98 || v.y > 0.6 || v.y < -0.7) { ok = false; break; }
+        if (v.z > 1 || Math.abs(v.x) > 0.98 || v.y > yT || v.y < yB) { ok = false; break; }
       }
       for (const x of [b.minX - 0.5, b.maxX + 0.5]) for (const z of [b.minZ - 0.5, b.maxZ + 0.5]) for (const y of [-1, b.topY + 1]) {
         if (!ok) break;
         const v = this._v.set(x, y, z).project(fc);
-        if (v.z > 1 || Math.abs(v.x) > 0.98 || v.y > 0.6 || v.y < -0.7) ok = false;
+        if (v.z > 1 || Math.abs(v.x) > 0.98 || v.y > yT || v.y < yB) ok = false;
       }
       if (ok) break;
     }
@@ -97,13 +99,16 @@ export const Cam = {
 };
 
 
-// one-finger drag changes the angle; two fingers (or a trackpad pinch / wheel) zoom within a narrow range
+// Mouse / one-finger drag orbits; wheel, trackpad pinch or two fingers zoom within a narrow range.
+// The scene never places tiles: clicks and drags here only move the camera (DROP / Space places).
 export function initCameraInput() {
   canvas.addEventListener('pointerdown', e => {
+    if (e.button !== undefined && e.button !== 0 && e.pointerType === 'mouse') return;
     AudioFX.unlock();
     canvas.setPointerCapture(e.pointerId);
     Cam.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (Cam.pointers.size === 2) { const [a, b] = [...Cam.pointers.values()]; Cam.pinch0 = Math.hypot(a.x - b.x, a.y - b.y); Cam.zoom0 = Cam.zoom; }
+    Cam.dragged = false;
     canvas.classList.add('dragging');
   });
   canvas.addEventListener('pointermove', e => {
@@ -121,10 +126,12 @@ export function initCameraInput() {
   const endPointer = e => {
     Cam.pointers.delete(e.pointerId);
     if (Cam.pointers.size < 2) Cam.pinch0 = 0;
-    if (Cam.pointers.size === 0) canvas.classList.remove('dragging');
+    if (Cam.pointers.size === 0) { canvas.classList.remove('dragging'); Cam.dragged = false; }
   };
   canvas.addEventListener('pointerup', endPointer);
   canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('lostpointercapture', endPointer);
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
   canvas.addEventListener('wheel', e => { e.preventDefault(); Cam.zoom = clampZoom(Cam.zoom * (1 + e.deltaY * 0.0012)); }, { passive: false });
 }
 

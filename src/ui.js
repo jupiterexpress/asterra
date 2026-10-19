@@ -4,10 +4,11 @@ import { AudioFX } from './audio.js';
 import { Cam } from './camera.js';
 import { ghost } from './guides.js';
 import { S, used, runTotal, speedMul } from './state.js';
-import { place, rotateY, tip, turn, canTurn, usePower, reset, compactness } from './game.js';
+import { place, rotateY, tip, turn, canTurn, usePower, reset, compactness, nudgeTile } from './game.js';
+import { Bonus } from './bonus.js';
 import { Tutorial } from './tutorial.js';
 import { Contract } from './contract.js';
-import { Powers } from './powerups.js';
+import { Powers, POWERUPS } from './powerups.js';
 
 /* =====================================================================
    UI
@@ -16,8 +17,11 @@ export const $ = id => document.getElementById(id);
 export const statsEl = $('stats'), meterEl = $('meter'), segsEl = $('segs'), meterNum = $('meterNum');
 export const pauseEl = $('pause'), appEl = $('app');
 export const endEl = $('end'), controlsEl = $('controls'), turnBtn = $('turnBtn'), turnLabel = $('turnLabel');
+
+let _dayNum = 0, goHome = () => {};
+export function setHomeHandler(fn) { goHome = fn; }
+export function setDayNum(n) { _dayNum = n; const el = $('dayLabel'); if (el) el.textContent = n > 0 ? 'DAY ' + n : ''; }
 export const powerBtn = $('powerBtn'), placeBtn = $('placeBtn'), tipBtn = $('tipBtn'), toastEl = $('toast'), hintEl = $('hint');
-const shadowSvg = '<svg class="shadow-icon" viewBox="0 0 30 18" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="10" y="1" width="10" height="7" rx="1"/><path d="M15 9v3" stroke-dasharray="1.5 1.5"/><rect x="10" y="12" width="10" height="5" rx="1" stroke-dasharray="2 1.6"/></svg>';
 
 export function buildSegs() {
   const n = Math.max(1, CFG.meter.max | 0);
@@ -31,12 +35,19 @@ export function updateHUD() {
   const celebrating = Powers.ready;
   [...segsEl.children].forEach((s, i) => s.classList.toggle('on', celebrating || i < S.meter));
   meterNum.textContent = (celebrating ? max : Math.min(S.meter, max)) + '/' + max;
+  $('meterHint').textContent = celebrating ? 'Powerup ready · press Q' : 'Perfect drops charge it';
+  meterEl.classList.toggle('full', celebrating);
+  updateCoins();
   statsEl.innerHTML =
     '<span>PIECE</span> <b>' + Math.min(runTotal(), used() + (S.piece ? 1 : 0)) + '/' + runTotal() + '</b> <span>·</span> ' +
     '<span>PLACED</span> <b>' + S.placed + '</b> <span>· FELL</span> <b>' + S.fell + '</b>' +
     ' <span>· HEIGHT</span> <b>' + (b.topY + 1) + '</b>' + strikeMarks() + speedTag();
   Powers.update();
-  if (Contract.active) statsEl.innerHTML = `<span>TILES</span> <b>${Math.min(runTotal(), used()+(S.piece ? 1 : 0))}/${runTotal()}</b> <span>·</span> <span>PLACED</span> <b>${S.placed}</b>${strikeMarks()}`;
+  // On a contract the run stats live inside the contract panel, so nothing in the top-left can overlap.
+  // the practice round and contracts don't use the daily-run stats line
+  statsEl.hidden = Contract.active || Tutorial.mode !== 'off';
+  $('dayLabel').hidden = Contract.active || Tutorial.mode !== 'off' || !_dayNum;
+  if (Contract.active) $('contractStats').innerHTML = `<span>TILES</span> <b>${Math.min(runTotal(), used()+(S.piece ? 1 : 0))}/${runTotal()}</b> <span>·</span> <span>PLACED</span> <b>${S.placed}</b>${strikeMarks()}`;
   tipBtn.hidden = !CFG.rotate.allowTip;
   const p = S.piece, lim = CFG.turn.maxPerPiece | 0, cost = CFG.turn.meterCost | 0;
   let sub = '';
@@ -61,10 +72,85 @@ export function toast(text, kind) {
 }
 export function hideHint() { hintEl.classList.add('gone'); }
 
-// buttons: fire on pointerdown for responsiveness; keyboard activation arrives as click with detail 0
+/* ---------- coins ---------- */
+let shownCoins = null;
+export function updateCoins() {
+  const n = Contract.coins;
+  if (n === shownCoins) return;
+  const up = shownCoins !== null && n > shownCoins, down = shownCoins !== null && n < shownCoins;
+  shownCoins = n;
+  $('coinBalance').textContent = n.toLocaleString();
+  if (!$('coinsPage').hidden) renderCoinsPage();
+  const chip = $('coinBtn');
+  if (up || down) { chip.classList.remove('gain', 'loss'); void chip.offsetWidth; chip.classList.add(up ? 'gain' : 'loss'); }
+}
+export function coinPop(text, kind) {
+  const el = $('coinPop');
+  el.textContent = text + ' ◈'; el.className = 'coin-pop ' + kind;
+  void el.offsetWidth; el.classList.add('show');
+}
+function renderCoinsPage() {
+  $('coinsTotal').textContent = Contract.coins.toLocaleString();
+  const rows = Contract.ledger;
+  $('coinsLedger').innerHTML = rows.length ? rows.map(r => {
+    const amt = r.amount > 0 ? '+' + r.amount : r.amount < 0 ? '\u2212' + (-r.amount) : '0';
+    return `<li class="${r.amount > 0 ? 'gain' : r.amount < 0 ? 'loss' : ''}"><span>${r.reason}${r.contract && !r.reason.startsWith(r.contract) ? ' · ' + r.contract : ''}</span><b>${amt} ◈</b></li>`;
+  }).join('') : '<li class="empty"><span>Coins you earn or spend this session show up here.</span></li>';
+}
+let coinsWasPaused = false, coinsFrom = '';
+export function openCoins() {
+  if (S.screen && S.screen !== 'coins' && S.screen !== 'home') return;
+  if (S.phase === 'finishing') return;
+  if (!$('coinsPage').hidden) { closeCoins(); return; }
+  coinsWasPaused = S.paused; coinsFrom = S.screen === 'home' ? 'home' : '';
+  S.screen = 'coins'; renderCoinsPage();
+  $('closeCoins').innerHTML = (coinsFrom ? 'BACK' : 'BACK TO BUILDING') + ' <kbd>ESC</kbd>';
+  $('coinsPage').hidden = false; controlsEl.hidden = true; pauseEl.hidden = true;
+  document.querySelector('.hud-top').inert = true;
+  $('closeCoins').focus({ preventScroll: true });
+}
+export function closeCoins() {
+  if ($('coinsPage').hidden) return;
+  $('coinsPage').hidden = true;
+  if (S.screen === 'coins') S.screen = coinsFrom;
+  if (coinsFrom === 'home') { coinsFrom = ''; $('homeCoins').focus({ preventScroll: true }); return; }
+  document.querySelector('.hud-top').inert = false;
+  if (coinsWasPaused) { pauseEl.hidden = false; controlsEl.hidden = true; }
+  else controlsEl.hidden = S.phase === 'over' || S.phase === 'finishing' || Tutorial.mode === 'overview' || Tutorial.mode === 'complete' || !!S.screen;
+  if (S.screen === 'contract') controlsEl.hidden = true;
+}
+
+/* ---------- tile value meter ---------- */
+let tvSig = '';
+export function updateTileValue() {
+  const el = $('tileValue'), p = S.piece;
+  const show = !!p && p.value != null && S.phase === 'aim';
+  if (!show) { if (!el.hidden) { el.hidden = true; tvSig = ''; } return; }
+  const T = CFG.tileValue, v = p.locked != null ? p.locked : p.value, n = Math.round(v);
+  const span = Math.max(1, T.start - T.expireAt), k = Math.min(1, Math.max(0, (v - T.expireAt) / span));
+  const state = n > 0 ? (v > T.start * 0.3 ? 'good' : 'low') : n === 0 ? 'zero' : 'neg';
+  const paused = S.active.freeze > 0 || S.active.block;
+  const sig = n + state + paused + (p.locked != null);
+  el.hidden = false;
+  $('tvFill').style.transform = `scaleX(${k})`;
+  if (sig === tvSig) return;
+  tvSig = sig;
+  $('tvZero').style.left = (Math.min(1, Math.max(0, -T.expireAt / span)) * 100) + '%';
+  el.className = 'tile-value ' + state + (paused ? ' paused' : '');
+  el.setAttribute('aria-valuenow', n);
+  $('tvAmount').textContent = (n > 0 ? '+' : n < 0 ? '\u2212' : '') + Math.abs(n) + ' ◈';
+  $('tvNote').textContent = p.locked != null ? 'Locked in' : paused ? 'Paused' : n > 0 ? (state === 'good' ? 'Drop fast to earn more' : 'Running low') : n === 0 ? 'Worth nothing now' : `Penalty · expires at ${T.expireAt}`;
+}
+
+// buttons: fire on pointerdown for responsiveness; keyboard activation arrives as click with detail 0.
+// A mouse press never leaves focus on a game button, so Space always means DROP and never re-presses that button.
 function bindBtn(el, fn) {
-  el.addEventListener('pointerdown', e => { e.preventDefault(); AudioFX.unlock(); if (S.paused) return; el.classList.add('pressed'); fn(); });
-  const up = () => el.classList.remove('pressed');
+  el.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault(); AudioFX.unlock(); if (S.paused || el.disabled) return; el.classList.add('pressed'); fn();
+  });
+  el.addEventListener('mousedown', e => e.preventDefault());
+  const up = () => { el.classList.remove('pressed'); if (document.activeElement === el) el.blur(); };
   el.addEventListener('pointerup', up); el.addEventListener('pointerleave', up); el.addEventListener('pointercancel', up);
   el.addEventListener('click', e => { if (e.detail === 0 && !S.paused) fn(); });
 }
@@ -109,11 +195,18 @@ const TUNE = [
   ['meter.success', 'Points: placed (not perfect)', 'pts', 0, 6, 1],
   ['meter.perfect', 'Points: perfect', 'pts', 0, 10, 1],
   ['perfect.minSupport', 'Perfect needs underside supported', '', 0.5, 1, 0.05],
-  ['powerups.shadow.placements', 'Landing Shadow lasts', 'placements', 1, 20, 1],
+  ['tileValue.start', 'Tile value: starts at', 'coins', 20, 300, 10],
+  ['tileValue.drainPerSec', 'Tile value: drain rate', 'coins/s', 0, 40, 1],
+  ['tileValue.expireAt', 'Tile value: tile expires at', 'coins', -200, 0, 10],
+  ['reward.perCell.A+', 'Reward per cell: grade A+', 'coins', 0, 400, 5],
+  ['reward.perCell.A', 'Reward per cell: grade A', 'coins', 0, 400, 5],
+  ['reward.perCell.B', 'Reward per cell: grade B', 'coins', 0, 400, 5],
+  ['reward.perCell.C', 'Reward per cell: grade C', 'coins', 0, 400, 5],
+  ['reward.perCell.D', 'Reward per cell: grade D', 'coins', 0, 400, 5],
+  ['powerups.freeze.seconds', 'Freeze Time lasts', 's', 2, 20, 1],
   ['celebrate.flash', 'Meter-full flash', 's', 0, 0.4, 0.05],
   ['celebrate.spark', 'Meter-full spark', 's', 0, 0.5, 0.05],
   ['celebrate.pop', 'Meter-full pop', 's', 0, 0.5, 0.05],
-  ['powerups.shadow.showStability', 'Shadow shows stable/unstable', '', 'bool'],
   ['camera.ring', 'Camera fit (keep tile paths in view)', '', 0, 1, 0.05],
   ['camera.sens', 'Camera drag sensitivity', '', 0.002, 0.02, 0.0005],
   ['camera.settle', 'Camera settle after drag', 's', 0, 0.2, 0.01],
@@ -149,6 +242,7 @@ function buildTune() {
   });
 }
 export const sheet = $('sheet');
+function pressFx(el) { el.classList.add('pressed'); setTimeout(() => el.classList.remove('pressed'), 110); }
 
 
 /* Full charge stays available until a powerup is actually used. */
@@ -156,10 +250,10 @@ export function celebrate() {
   S.celebrateUntil = performance.now() + 450;
   meterEl.classList.add('full');
   Powers.notifyReady(); AudioFX.power();
-  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) powerBtn.animate([
-    { transform: 'translateX(0)' }, { transform: 'translateX(-3px)' },
-    { transform: 'translateX(3px)' }, { transform: 'translateX(0)' },
-  ], { duration: 250, iterations: 2 });
+  toast('POWER READY', 'perfect');
+  // the button pulses, glows and shakes (CSS .ready); this extra burst marks the moment it arrives
+  powerBtn.classList.remove('arriving'); void powerBtn.offsetWidth; powerBtn.classList.add('arriving');
+  setTimeout(() => powerBtn.classList.remove('arriving'), 1300);
   updateHUD();
 }
 
@@ -167,16 +261,36 @@ export function celebrate() {
 export function endRun(why) {
   if (Contract.active) { Contract.end(why); hideHint(); return; }
   S.phase = 'over';
-  $('endTitle').textContent = why === 'strikes' ? 'OUT OF STRIKES' : 'BUILD COMPLETE';
+  const dayLabel = _dayNum > 0 ? ' · DAY ' + _dayNum : '';
+  $('endTitle').textContent = (why === 'strikes' ? 'OUT OF STRIKES' : 'BUILD COMPLETE') + dayLabel;
   const b = World.bounds;
+  const compact = Math.round(compactness() * 100);
   const stats = [
     ['PLACED', S.placed + '/' + runTotal()], ['FELL', S.fell], (CFG.strikes.limit | 0) > 0 ? ['STRIKES', S.strikes + '/' + (CFG.strikes.limit | 0)] : ['PERFECT', S.perfects],
     ['HEIGHT', b.topY + 1], ['FOOTPRINT', (b.maxX - b.minX + 1) + '×' + (b.maxZ - b.minZ + 1)],
-    ['COMPACT', Math.round(compactness() * 100) + '%', 'hi'],
+    ['COMPACT', compact + '%', 'hi'],
   ];
   $('endGrid').innerHTML = stats.map(([k, v, c]) => '<div class="' + (c || '') + '"><span>' + k + '</span><b>' + v + '</b></div>').join('');
-  $('endSub').textContent = S.cubes + ' cubes · ' + S.perfects + ' perfect · drag to change camera angle';
+  $('endSub').textContent = S.cubes + ' cubes · ' + S.perfects + ' perfect · tap to share · drag to rotate';
   $('againBtn').textContent = 'BUILD AGAIN';
+  // wire share button (idempotent)
+  const shareBtn = $('shareBtn');
+  if (shareBtn) {
+    shareBtn.hidden = false;
+    shareBtn.onclick = () => {
+      const row = why === 'strikes' ? '❌' : compact >= 80 ? '🏆' : compact >= 60 ? '🥇' : compact >= 40 ? '🥈' : '🥉';
+      const placed = S.placed, total = runTotal(), perfects = S.perfects;
+      const bars = Math.round(compact / 20);
+      const density = '█'.repeat(bars) + '░'.repeat(5 - bars);
+      const dayStr = _dayNum > 0 ? ' #' + _dayNum : '';
+      const txt = `Asterra Daily${dayStr}  ${row}
+${placed}/${total} placed · ${perfects} perfect
+${density} ${compact}% compact
+asterra.app`;
+      if (navigator.share) navigator.share({ text: txt }).catch(() => {});
+      else { navigator.clipboard.writeText(txt).then(() => toast('Copied!', 'good')).catch(() => toast(txt, 'good')); }
+    };
+  }
   controlsEl.hidden = true; endEl.hidden = false; hideHint();
   AudioFX.power();
 }
@@ -193,28 +307,75 @@ export function initUI() {
   $('resumeBtn').addEventListener('click', () => setPaused(false));
   $('pRestartBtn').addEventListener('click', () => { if (Tutorial.mode === 'challenge') Tutorial.challenge(); else if (Contract.active) Contract.start(); else reset(); setPaused(false); });
   $('tutorialReplay').addEventListener('click', () => Tutorial.start());
+  $('pHomeBtn').addEventListener('click', () => { setPaused(false); goHome(); });
   $('pTuneBtn').addEventListener('click', () => { sheet.hidden = false; pauseEl.hidden = true; });
   document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); else if (S.phase === 'finishing') S.paused = false; });
   window.addEventListener('blur', () => setPaused(true));
   window.addEventListener('focus', () => { if (S.phase === 'finishing') S.paused = false; });
   bindBtn(powerBtn, () => Powers.open());
+  // Desktop keys: R rotate · F flip · X axis · Space drop · Q powerups · C coins · P/Esc pause · arrows orbit.
+  // Modifier combos (Cmd/Ctrl/Alt) are left to the browser; held keys do not repeat game actions.
+  const GAME_KEYS = new Set([' ', 'r', 'f', 'x', 'q', 'c', 'p', 'a', 'd', 'w', 's', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown']);
+  const inGameUI = el => !el || el === document.body || !!el.closest?.('#controls, .hud-top, #scene, #activePowers');
   window.addEventListener('keydown', e => {
-    if (S.screen === 'powers' || S.screen === 'tiles') { if (e.key === 'Escape') Powers.close(); return; }
-    if (S.screen || S.phase === 'finishing' || (e.target.closest && e.target.closest('.sheet, input, textarea'))) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
-    if ((k === ' ' || k === 'enter') && e.target.closest?.('button')) return;
+    if (S.screen === 'coins') { if (k === 'escape' || k === 'c') { e.preventDefault(); closeCoins(); } return; }
+    if (S.screen === 'powers') {
+      if (k === 'escape' || k === 'q') { e.preventDefault(); Powers.close(); return; }
+      const opt = Object.entries(POWERUPS).find(([, p]) => p.key === k);
+      if (opt && !e.repeat) { e.preventDefault(); usePower(opt[0]); }
+      return;
+    }
+    if (S.screen === 'tiles') {
+      if (k === 'escape') { e.preventDefault(); Powers.open(); return; }
+      if (/^[1-5]$/.test(k) && !e.repeat) { e.preventDefault(); Powers.toggleTile(Number(k) - 1); return; }
+      if (k === 'enter' && !e.target.closest?.('button') && !e.repeat) { e.preventDefault(); Powers.confirmTiles(); }
+      return;
+    }
+    if (S.screen || S.phase === 'finishing' || (e.target.closest && e.target.closest('.sheet, input, textarea, select'))) return;
     if (Tutorial.mode === 'overview' || Tutorial.mode === 'complete') return;
-    if (k === 'p' || k === 'escape') { setPaused(!S.paused); return; }
-    if (S.paused) return;
-    if (k === ' ' || k === 'enter') { e.preventDefault(); place(); }
-    else if (k === 'r') rotateY();
-    else if (k === 'e') turn();
-    else if (k === 't') tip();
-    else if (k === 's') Powers.open();
+    // a focused dialog button keeps its native Space/Enter; game buttons never swallow game keys
+    if (!inGameUI(e.target) && (k === ' ' || k === 'enter')) return;
+    if (GAME_KEYS.has(k)) e.preventDefault();
+    if (k === 'p' || k === 'escape') {
+      if (e.repeat) return;
+      if (k === 'escape' && S.active.block) { Bonus.cancel(); updateHUD(); return; }
+      setPaused(!S.paused); return;
+    }
+    if (S.paused || S.phase === 'over') return;
+    if (k === 'c') { if (!e.repeat && Contract.active) openCoins(); return; }
+    if (S.active.block) {                                  // aiming a bonus block
+      if (k === ' ') { if (!e.repeat) place(); }
+      else if (k === 'arrowleft' || k === 'a') Bonus.move(-1, 0);
+      else if (k === 'arrowright' || k === 'd') Bonus.move(1, 0);
+      else if (k === 'arrowup' || k === 'w') Bonus.move(0, 1);
+      else if (k === 'arrowdown' || k === 's') Bonus.move(0, -1);
+      return;
+    }
+    if (e.repeat && k !== 'a' && k !== 'd' && !k.startsWith('arrow')) return;
+    if (k === ' ') { pressFx(placeBtn); place(); }
+    else if (k === 'r') { pressFx($('rotBtn')); rotateY(); }
+    else if (k === 'f') { if (!tipBtn.hidden) { pressFx(tipBtn); tip(); } }
+    else if (k === 'x') { pressFx(turnBtn); turn(); }
+    else if (k === 'q') { Powers.open(); }
+    else if (k === 'a') nudgeTile(-1);
+    else if (k === 'd') nudgeTile(1);
     else if (k === 'arrowleft') Cam.goalYaw -= 0.15;
     else if (k === 'arrowright') Cam.goalYaw += 0.15;
     else if (k === 'arrowup') Cam.goalPitch += 0.1;
     else if (k === 'arrowdown') Cam.goalPitch -= 0.1;
+  });
+  // Space on a focused game button would otherwise also "click" it on key-up
+  window.addEventListener('keyup', e => { if (e.key === ' ' && inGameUI(e.target) && !S.screen) e.preventDefault(); });
+  $('coinBtn').addEventListener('click', () => { if (Contract.active || S.screen === 'contract') openCoins(); });
+  $('closeCoins').addEventListener('click', closeCoins);
+  $('coinsPage').addEventListener('click', e => { if (e.target === $('coinsPage')) closeCoins(); });
+  $('activePowers').addEventListener('click', e => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'block-cancel') { Bonus.cancel(); updateHUD(); }
+    else if (act === 'nudge-back') nudgeTile(-1);
+    else if (act === 'nudge-fwd') nudgeTile(1);
   });
   buildTune();
   $('gearBtn').addEventListener('click', () => {

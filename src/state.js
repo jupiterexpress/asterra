@@ -6,7 +6,7 @@ import { CFG } from './config.js';
 export const S = {
   screen: '',
   phase: 'wait', piece: null, waitT: 0.3,
-  meter: 0, inv: { shadow: 0 }, active: { shadow: 0, slow: 0, view: 0 }, tileQueue: [],
+  meter: 0, active: { shadow: 0, freeze: 0, block: false }, tileQueue: [],
   placed: 0, fell: 0, perfects: 0, pieces: [], falling: [], strikes: 0, paused: false,
   cubes: 0, box: null, endT: 0, dropping: [], trims: [], pending: 0, queuedDrop: false, predicted: 0,
   celebrateUntil: 0,

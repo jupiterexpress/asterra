@@ -1,8 +1,10 @@
 # Asterra
 
-A mobile 3D stacking game. Random polycube tiles travel back and forth over a build; you ROTATE, FLIP, change AXIS and DROP them so they settle onto the structure. Built with Three.js, bundled with Vite, and wrapped as an iPhone app with Capacitor. Everything runs offline.
+A cozy, geometric, slightly enchanted browser city-building game. Build a neighborhood one contract at a time: each blueprint asks you to stack tiles into a building, and your density grade decides how many coins it earns. Built with Three.js, bundled with Vite, and wrapped as an iPhone app with Capacitor. Everything runs offline and in this browser. There are no accounts and no server.
 
-Design decisions and the reasons behind them are in [DESIGN.md](DESIGN.md). Read it before changing gameplay.
+- **Design decisions and the reasons behind them:** [DESIGN.md](DESIGN.md). Read it before changing gameplay or balance.
+- **How the code fits together:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+- **What is next, in priority order, plus known bugs:** [FUTURE.md](FUTURE.md).
 
 ## Setup (once per machine)
 
@@ -17,17 +19,45 @@ Design decisions and the reasons behind them are in [DESIGN.md](DESIGN.md). Read
 npm run dev
 ```
 
-Open the local address it prints. The "Network" address works on a phone on the same Wi-Fi.
+Open the local address it prints. The "Network" address works on a phone on the same Wi-Fi. Open the server URL rather than `index.html` directly, because Vite bundles the modules, styles and fonts.
 
-Open the server URL, rather than opening `index.html` directly: Vite loads and bundles the game’s modules, styles, and fonts.
+### Launch behavior
 
-## Asterra opening and first contract
+- **New player** (no saved progress): welcome story, then How to Play practice, then the **home** screen.
+- **Returning player** (any saved progress): straight to the **home** screen. The game never opens inside a contract or a development screen.
+- Progress is stored in this browser's localStorage. Clearing site data, or using a private window, starts a new player.
 
-First-time players create a named geometric contractor, meet the city, witness a brief stylized earthquake, and learn about rebuilding, blueprints, density, and rewards. Nine player-paced pages take roughly 30–45 seconds to read; Continue or tapping the scene advances immediately. Reduced-motion settings remove the shake and animated collapse.
+## Controls
 
-The story leads to four looping control demonstrations, then the guided placement challenge. Hints appear only after the player has had time to experiment. Completing practice opens the Lantern House contract: fill a 5 × 5 × 3 blueprint to at least 60% density using up to 30 tiles. The glowing outline and density HUD show the goal during play. Cells above the blueprint do not earn density credit.
+| Key | Action |
+|---|---|
+| Mouse drag / scroll, arrow keys | Orbit and zoom the camera |
+| R | Rotate the tile |
+| F | Flip the tile |
+| X | Switch travel axis |
+| Space | Drop the tile (the only way to place a tile) |
+| Q | Open powerups (when the power meter is full) |
+| C | Coins page |
+| P or Esc | Pause |
+| A / D | Step a frozen tile (Freeze Time) |
+| 1 / 2 / 3 | Choose a powerup in the picker |
 
-End-of-contract coins reward filled blueprint cells with an additional density bonus. An amber-window upgrade costs 20 coins and decorates the current build. The name, completed onboarding, and coin balance save locally; structures are currently per-run. Pause → **MEET ASTERRA** replays the story; **HOW TO PLAY** replays training. Returning players see the contract briefing.
+Clicking or dragging the build area only moves the camera. It never places a tile.
+
+## The game loop
+
+1. **Home.** Pick the highlighted contract (or View City once you have built one).
+2. **Blueprint.** Read the target: a density percentage and a tile budget.
+3. **Build.** Tiles arrive one at a time. Each starts worth +100 coins and loses value every second. Drop fast to keep more; a slow tile can cost coins, and a tile that runs out is a missed placement.
+4. **Finish.** Fill the blueprint to its target and finish, or keep stacking for a higher grade. The game also finishes by itself when no tile can reach the remaining gaps.
+5. **Reward.** The building is revealed. Results show the density grade, density reward, quick-placement earnings, penalties and the total.
+6. **Home.** The finished contract gets a checkmark and the next one unlocks.
+
+Three contracts are in the game: the Lantern House, the Step House and the Courtyard.
+
+## Balance
+
+Rewards and penalties are configurable in `src/config.js` (`reward`, `tileValue`) and most are on the tuning panel (slider icon, top right). Every number is a placeholder until it has been playtested. See DESIGN.md for the current values and reasoning.
 
 ## Run on your iPhone
 
@@ -43,7 +73,7 @@ This builds the game, copies it into the iOS project and opens Xcode. Then in Xc
 
 After changing the game code, run `npm run ios` again (or `npm run sync` if Xcode is already open) before pressing Run.
 
-The app ID is `com.jupiterexpress.polycubestacker` (in `capacitor.config.json`). Change it before the first TestFlight upload if you want a different one; it can't change after the app is on the App Store. The app icon is still Capacitor's placeholder.
+The app ID is `com.jupiterexpress.polycubestacker` (in `capacitor.config.json`). Change it before the first TestFlight upload if you want a different one; it can't change after the app is on the App Store. The app icon is still Capacitor's placeholder. The iOS build has not been re-tested since the homepage and economy changes.
 
 ## Test
 
@@ -51,44 +81,32 @@ The app ID is `com.jupiterexpress.polycubestacker` (in `capacitor.config.json`).
 npm test
 ```
 
-Builds the game and checks:
+Builds the game, then runs the Playwright suites in `tests/`:
 
-- **Gameplay is unchanged.** It replays 14 seeded, scripted runs (263 drops, covering trims, strikes, the Power Meter and Landing Shadow) and compares every drop to `tests/golden.json`, which was recorded from the original single-file prototype (`legacy/stacker-prototype.html`).
-- **It works offline.** The page loads with all internet access blocked.
-- **Onboarding and contracts work.** Name validation, story progression, storage fallback, reduced motion, tutorial hints and completion, contract density, coin rewards, and customization.
+- **Gameplay is unchanged.** Replays seeded, scripted runs and compares every drop to `tests/golden.json`, recorded from the original prototype (`legacy/stacker-prototype.html`).
+- **It works offline.** The page loads with internet access blocked.
+- **Onboarding, contracts and powerups.** Several of these specs were written before the homepage existed and start from the contract screen. **They have not been updated yet and are expected to need changes** (see FUTURE.md, item 1).
 
-If you change gameplay on purpose, the first check will fail. Re-record the reference with:
-
-```
-UPDATE_GOLDEN=1 npx playwright test
-```
-
-then commit the new `tests/golden.json` alongside the change.
+If you change gameplay on purpose, re-record the reference with `UPDATE_GOLDEN=1 npx playwright test` and commit the new `tests/golden.json` with the change.
 
 ## Where things are
 
+Full module map: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The short version:
+
 | File | What it holds |
 |---|---|
-| `src/config.js` | Every tunable number (all placeholders), plus the tile colors |
-| `src/main.js` | Startup, the animation loop, and the `window.STACKER` debug handle |
-| `src/opening.js` | Contractor creation, story chapters, saved onboarding, tutorial handoff |
-| `src/opening-scene.js` | Procedural city, floating contractor, earthquake, blueprint illustration |
-| `src/tutorial.js` | Guided placement challenge and contextual hints |
-| `src/contract.js` | Lantern House blueprint, density, saved coins, amber-light upgrade |
-| `src/game.js` | Spawning, ROTATE / FLIP / AXIS / DROP, trimming, landing, scoring, strikes, reset |
-| `src/state.js` | The current run's state (`S`) |
-| `src/poly.js` | Tile shapes, the 24 orientations, resting sides for FLIP |
-| `src/world.js` | Which cells are filled, the baseplate area and trimming geometry |
-| `src/physics.js` | Where a tile lands and whether it stays (center of mass over support) |
-| `src/movement.js` | How tiles travel along their lane |
-| `src/camera.js` | Camera angle, distance and drag/pinch input |
-| `src/scene.js` | Renderer, lights, shadows, cube meshes, baseplate |
-| `src/guides.js` | Lane highlight, optional path line, Landing Shadow ghost |
-| `src/fx.js` | Short visual effects (dust rings, flashes, trim sweep) |
-| `src/ui.js` | HUD, buttons, pause, tuning sheet, end card, meter-full animation |
-| `src/audio.js` | Synthesized sound effects |
-| `src/powerups.js` | Powerup registry (Landing Shadow) |
+| `src/main.js` | Startup routing, the animation loop, the `window.STACKER` debug handle |
+| `src/home.js` | Homepage: contract path, coin balance, Continue, View City, New Game |
+| `src/contract.js` | Contracts, blueprint goal, density grade, rewards, saved progress, auto-finish |
+| `src/blueprints.js` | The three contract blueprints |
+| `src/game.js` | Spawning, ROTATE / FLIP / AXIS / DROP, landing, tile value, strikes, reset |
+| `src/powerups.js` | Powerup picker and banners (Tile Choice, Freeze Time, Add 1×1 Block) |
+| `src/bonus.js` | The Add 1×1 Block aiming cursor |
+| `src/ui.js` | HUD, buttons, keyboard, pause, coins page, tuning sheet |
+| `src/tutorial.js` | Guided placement practice |
+| `src/opening.js`, `src/opening-scene.js` | Welcome story and its miniature scene |
+| `src/config.js` | Every tunable number |
 | `src/styles.css` | All styling |
-| `ios/` | The Xcode project (Capacitor) |
+| `ios/` | Xcode project (Capacitor), created by `npm run ios` |
 
-The tuning sheet (slider icon, top right) changes most values live. It is a development tool and should be hidden or removed for release builds.
+The tuning panel is a development tool. Hide or remove it for release builds.
