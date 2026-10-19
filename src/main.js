@@ -4,6 +4,7 @@ import '@fontsource/barlow-condensed/700.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import './styles.css';
+import { inject } from '@vercel/analytics';
 import { CFG, dailySeed, dailyDayNum } from './config.js';
 import { World } from './world.js';
 import { Physics } from './physics.js';
@@ -20,6 +21,11 @@ import { Powers } from './powerups.js';
 import { initScenery, updateScenery } from './scenery.js';
 import { Bonus } from './bonus.js';
 import { Home } from './home.js';
+
+/* =====================================================================
+   VERCEL WEB ANALYTICS
+   ===================================================================== */
+inject();
 
 /* =====================================================================
    DAILY SEED — inject the day's seed into CFG before reset() is called
