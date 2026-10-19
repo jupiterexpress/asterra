@@ -110,3 +110,7 @@ Full module map: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The short version
 | `ios/` | Xcode project (Capacitor), created by `npm run ios` |
 
 The tuning panel is a development tool. Hide or remove it for release builds.
+
+## Integrated city game
+
+The [integrated-game](integrated-game/) directory contains the independent Asterra city and stacking game. Run `cd integrated-game && npm install && npm run dev`, then open the local URL shown by Vite. The original stacking game in this repository root remains available with its existing commands.

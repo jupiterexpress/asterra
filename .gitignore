@@ -9,3 +9,6 @@ ios/DerivedData/
 ios/App/Pods/
 *.xcuserstate
 xcuserdata/
+
+# Independent integrated game's browser test artifacts
+integrated-game/test-results*/
