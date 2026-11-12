@@ -7,6 +7,7 @@ import { RADIUS, DIRECTIONS, position, key, candidates, connectedHomes, isRoute,
 import {makeBuilding} from '../src/building.js';
 import {villageReady} from '../src/village-buildings.js';
 import {CONTRACTS} from '../src/blueprints.js';
+import {wearForGrade,nearestBuildingGrade} from '../src/wear-config.js';
 const lin=c=>new THREE.Color(c).convertSRGBToLinear();
 const mat=(c,extra={})=>new THREE.MeshStandardMaterial({color:lin(c),roughness:.84,...extra});
 const M={grass:mat('#8ba76c'),earth:mat('#6b6655'),rock:mat('#53584c'),stone:mat('#b7baa1'),path:mat('#b3b59a'),wood:mat('#796048'),dark:mat('#384d49'),soil:mat('#524737'),gold:mat('#edc580'),glow:mat('#ffe0a2',{emissive:lin('#ffbb55'),emissiveIntensity:1.8}),wall:mat('#aaa38a'),leaf:mat('#77985c')};
@@ -21,11 +22,13 @@ function prop(parent,name,x,z,width,y=0,rotation=0){
  const s=width/Math.max(size.x,size.z);o.scale.setScalar(s);o.position.set(-center.x*s,-b.min.y*s,-center.z*s);
  const g=new THREE.Group();g.add(o);g.position.set(x,y,z);g.rotation.y=rotation;parent.add(g);return g;
 }
-function lamp(p,x,z,y=0){box(p,x,y+.42,z,.07,.84,.07,M.wood);box(p,x,y+.9,z,.2,.3,.2,M.glow);box(p,x,y+1.08,z,.3,.07,.3,M.dark);box(p,x,y+.73,z,.27,.06,.27,M.dark);}
+// PLACEHOLDER cosmetic unlit-glass color; no lighting or purchase rule changes.
+const unlitGlass=mat('#39433b');
+function lamp(p,x,z,y=0,grade='A+'){box(p,x,y+.42,z,.07,.84,.07,M.wood);box(p,x,y+.9,z,.2,.3,.2,wearForGrade(grade)>=.85?unlitGlass:M.glow);box(p,x,y+1.08,z,.3,.07,.3,M.dark);box(p,x,y+.73,z,.27,.06,.27,M.dark);}
 function flowers(g,x,z,size=.55,y=0){prop(g,'Flower_3_Group',x,z,size,y);prop(g,'Grass_Wispy_Short',x+.19,z-.17,size*.7,y);}
 function planter(g,x,z,w=.65,y=1.19){box(g,x,y+.1,z,w,.2,.35,M.wood);box(g,x,y+.205,z,w-.07,.02,.28,M.soil);prop(g,'Bush_Common_Flowers',x,z,w*.95,y+.21);}
 function playerBuilding(g,t){
- const b=makeBuilding(t.cells,CONTRACTS[t.contract],{garden:!!t.garden});b.reveal(1);
+ const b=makeBuilding(t.cells,CONTRACTS[t.contract],{garden:!!t.garden,grade:t.grade});b.reveal(1);
  const xs=t.cells.map(c=>c[0]),zs=t.cells.map(c=>c[2]);
  const cx=(Math.min(...xs)+Math.max(...xs))/2,cz=(Math.min(...zs)+Math.max(...zs))/2;
  const scale=3.15/b.footprint;
@@ -33,7 +36,7 @@ function playerBuilding(g,t){
  b.group.position.set(-cx,0,-cz);model.add(b.group);b.group.userData.dispose=b.dispose;
  b.group.name='built-'+t.contract;b.group.userData.cellKeys=[...b.keys];
 
- lamp(g,-1.35,1);flowers(g,1.15,.85,.55);
+ lamp(g,-1.35,1,0,t.grade);flowers(g,1.15,.85,.55);
 }
 function bridge(g,axis){
  const b=new THREE.Group();b.rotation.y=-axis*Math.PI/3;g.add(b);const length=Math.sqrt(3)*RADIUS;
@@ -64,11 +67,25 @@ function road(g,t,state){
  for(let j=1;j<5;j++){const f=j/5;const seam=box(g,x/2*f,.074,z/2*f,t.kind==='road'?.96:.59,.008,.025,M.stone);seam.rotation.y=Math.atan2(x,z);}
  });
  if(!connections)box(g,0,.035,0,.65,.07,1.9,M.path);
- if(t.lantern){lamp(g,-.9,.6);lamp(g,.9,-.6);flowers(g,-1.1,-.65,.5);}
+ if(t.lantern){const grade=nearestBuildingGrade(state,t);g.userData.environmentWear={grade,value:wearForGrade(grade),lanternsLit:wearForGrade(grade)<.85};lamp(g,-.9,.6,0,grade);lamp(g,.9,-.6,0,grade);flowers(g,-1.1,-.65,.5);}
 }
-function grove(g,q){prop(g,q<0?'CommonTree_2':'CommonTree_4',-.45,-.35,1.65);prop(g,'Pine_2',.7,-.6,.85);prop(g,'Bush_Common_Flowers',.7,.6,.85);prop(g,'Bench_1',-.55,.83,.85,0,-.35);flowers(g,-1,.25,.7);flowers(g,.1,1.18,.6);prop(g,'Mushroom_Common',-.2,-1.12,.28);}
-function content(g,t,state){if(t.kind==='building')playerBuilding(g,t);if(t.kind==='grove')grove(g,t.q);if(isRoute(t))road(g,t,state);if(t.kind==='pond'){pond(g);if(t.bridge!==undefined)bridge(g,t.bridge);}}
-function disposeGroup(g){g.traverse(o=>{o.userData.dispose?.();if(o.geometry&&!o.geometry.userData.shared)o.geometry.dispose();if(o.userData.ghostMaterial)for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();});g.clear();}
+function grove(g,q,grade='A+'){prop(g,q<0?'CommonTree_2':'CommonTree_4',-.45,-.35,1.65);prop(g,'Pine_2',.7,-.6,.85);prop(g,'Bush_Common_Flowers',.7,.6,.85);prop(g,'Bench_1',-.55,.83,.85,0,-.35);flowers(g,-1,.25,.7);flowers(g,.1,1.18,.6);prop(g,'Mushroom_Common',-.2,-1.12,.28);
+ const wear=wearForGrade(grade);g.userData.environmentWear={grade,value:wear,foliage:wear>=.85?'dead':wear>=.6?'browning':'healthy'};
+ // PLACEHOLDER foliage colors and blend. Clone only this grove's materials.
+ if(wear>=.6)g.traverse(o=>{if(!o.isMesh)return;const m=o.material;if(!/Leaves|Flowers|Grass/.test(m.name))return;
+  if(wear>=.85&&/Leaves|Flowers/.test(m.name)){o.visible=false;return;}
+  o.material=m.clone();o.material.vertexColors=false;o.material.color.copy(lin(wear>=.85?'#64503a':'#9b7a43'));o.material.userData.wearOwned=true;
+  // Preserve the source leaf cutout alpha while replacing green RGB. PLACEHOLDER
+  // luminance weights retain leaf texture detail instead of showing opaque cards.
+  o.material.onBeforeCompile=shader=>{shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+#ifdef USE_MAP
+ diffuseColor.rgb = diffuse * (.55 + .45 * dot(texelColor.rgb, vec3(.299,.587,.114)));
+#endif`);};
+  o.material.customProgramCacheKey=()=> 'asterra-wear-foliage-v1';
+ });
+}
+function content(g,t,state){if(t.kind==='building')playerBuilding(g,t);if(t.kind==='grove')grove(g,t.q,nearestBuildingGrade(state,t));if(isRoute(t))road(g,t,state);if(t.kind==='pond'){pond(g);if(t.bridge!==undefined)bridge(g,t.bridge);}}
+function disposeGroup(g){g.traverse(o=>{o.userData.dispose?.();if(o.geometry&&!o.geometry.userData.shared)o.geometry.dispose();if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])if(m.userData.wearOwned)m.dispose();if(o.userData.ghostMaterial)for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();});g.clear();}
 export async function createWorld(canvas){
  await villageReady;
  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.outputEncoding=THREE.sRGBEncoding;renderer.localClippingEnabled=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;
@@ -85,7 +102,7 @@ export async function createWorld(canvas){
  const targets=[],fish=[],people=[];let state;
  function rebuild(s){state=s;renderer.shadowMap.needsUpdate=true;disposeGroup(root);disposeGroup(guides);disposeGroup(life);targets.length=0;fish.length=0;people.length=0;
  for(const t of Object.values(s.tiles)){
- const [x,z]=position(t.q,t.r),g=new THREE.Group();g.position.set(x,0,z);root.add(g);
+ const [x,z]=position(t.q,t.r),g=new THREE.Group();g.position.set(x,0,z);root.add(g);g.userData.tile={q:t.q,r:t.r,kind:t.kind};
  cylinder(g,0,-.275,0,RADIUS-.025,.37,M.earth,6);cylinder(g,0,-.045,0,RADIUS-.025,.09,M.grass,6);
  const depth=1.3+((t.q*7+t.r*11+30)%4)*.25;cylinder(g,0,-.46-depth/2,0,RADIUS-.035,depth,M.rock,6,.65);
  content(g,t,s);
@@ -111,7 +128,7 @@ export async function createWorld(canvas){
  if(tool==='land')cylinder(g,0,-.045,0,RADIUS-.05,.09,M.grass,6);
  else if(tool==='bridge')bridge(g,rotation%3);
  else if(tool==='garden'){const t=state.tiles[key(q,r)];if(t?.kind==='building')playerBuilding(g,{...t,garden:true});}
- else if(tool==='lantern'){lamp(g,-.9,.6);lamp(g,.9,-.6);}
+ else if(tool==='lantern'){const grade=nearestBuildingGrade(state,{q,r});lamp(g,-.9,.6,0,grade);lamp(g,.9,-.6,0,grade);}
  else if(tool==='site'){for(const [x,z] of [[-1,-1],[1,-1],[-1,1],[1,1]]){box(g,x,.25,z,.07,.5,.07,M.gold);}box(g,0,.03,0,2.4,.06,2.4,M.stone);}
  else content(g,{q,r,kind:tool,rotation,born:state.elapsed},state);
  g.traverse(o=>{if(o.isMesh){const originals=Array.isArray(o.material)?o.material:[o.material];o.material=originals.map(m=>new THREE.MeshBasicMaterial({color:valid?0xb5e3b3:0xf07d70,map:m.map||null,transparent:true,opacity:.5,depthWrite:false}));if(o.material.length===1)o.material=o.material[0];o.userData.ghostMaterial=true;o.castShadow=false;}});
@@ -124,5 +141,5 @@ export async function createWorld(canvas){
  people.forEach(p=>{p.object.visible=state.elapsed-p.home.born>9+p.index*8;if(!p.dest)return;const [x,z]=position(p.dest.q,p.dest.r),[hx,hz]=position(p.home.q,p.home.r);const k=(Math.sin(time*.25+p.index)+1)*.32;p.object.position.set(x+(hx-x)*k,.085+Math.abs(Math.sin(time*3))*.025,z+(hz-z)*k);p.object.rotation.y=Math.atan2(hx-x,hz-z);});renderer.render(scene,camera);
  }
  const resize=()=>{renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.setViewOffset(innerWidth,innerHeight,innerWidth<1050?100:35,0,innerWidth,innerHeight);camera.updateProjectionMatrix();};addEventListener('resize',resize);resize();
- return {rebuild,preview,pick,screen,tick,reset,renderer,focus:(q,r)=>{const[x,z]=position(q,r);const delta=new THREE.Vector3(x,0,z).sub(controls.target);camera.position.add(delta);controls.target.add(delta);controls.update();},buildingKeys:()=>{const out={};root.traverse(o=>{if(o.userData.cellKeys)out[o.name]=o.userData.cellKeys;});return out;},counts:()=>({fish:fish.filter(f=>f.object.visible).length,residents:people.filter(p=>p.object.visible).length})};
+ return {wearSummary:()=>root.children.map(g=>{let building;g.traverse(o=>{if(o.userData.architecture)building=o.userData.wear;});return {...g.userData.tile,building,environment:g.userData.environmentWear};}),rebuild,preview,pick,screen,tick,reset,renderer,focus:(q,r)=>{const[x,z]=position(q,r);const delta=new THREE.Vector3(x,0,z).sub(controls.target);camera.position.add(delta);controls.target.add(delta);controls.update();},buildingKeys:()=>{const out={};root.traverse(o=>{if(o.userData.cellKeys)out[o.name]=o.userData.cellKeys;});return out;},counts:()=>({fish:fish.filter(f=>f.object.visible).length,residents:people.filter(p=>p.object.visible).length})};
 }

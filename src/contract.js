@@ -130,7 +130,7 @@ export const Contract = {
     this.why = '';
     $('controls').hidden = true; $('finishBuild').hidden = true; guide.visible = false;
     if (!complete) { this.showResults(); return; }
-    this.building = makeBuilding(cells, this.plan); scene.add(this.building.group);
+    this.building = makeBuilding(cells, this.plan, {grade}); scene.add(this.building.group);
     this.revealTime = 0; S.phase = 'finishing'; document.body.classList.add('building-reveal');
     $('buildReveal').hidden = false; $('buildReveal').textContent = 'A NEW LIGHT IN ASTERRA';
     AudioFX.power(); this.building.reveal(0);

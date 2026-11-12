@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import {wearForGrade} from './wear-config.js';
+import {applyBuildingWear,prepareWorkshop} from './building-wear.js';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {MeshoptDecoder} from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import {OBJLoader} from 'three/examples/jsm/loaders/OBJLoader.js';
@@ -17,7 +19,9 @@ function prop(parent,name,x,z,width,y=0,rotation=0){
  const s=width/Math.max(size.x,size.z);o.scale.setScalar(s);o.position.set(-center.x*s,-b.min.y*s,-center.z*s);
  const g=new THREE.Group();g.add(o);g.position.set(x,y,z);g.rotation.y=rotation;parent.add(g);return g;
 }
-function lamp(p,x,z,y=0){box(p,x,y+.42,z,.07,.84,.07,M.wood);box(p,x,y+.9,z,.2,.3,.2,M.glow);box(p,x,y+1.08,z,.3,.07,.3,M.dark);box(p,x,y+.73,z,.27,.06,.27,M.dark);}
+// PLACEHOLDER unlit glass, shared by the two building-entry lanterns.
+const unlitGlass=mat('#39433b');
+function lamp(p,x,z,y=0,grade='A+'){box(p,x,y+.42,z,.07,.84,.07,M.wood);box(p,x,y+.9,z,.2,.3,.2,wearForGrade(grade)>=.85?unlitGlass:M.glow);box(p,x,y+1.08,z,.3,.07,.3,M.dark);box(p,x,y+.73,z,.27,.06,.27,M.dark);}
 function flowers(g,x,z,size=.55,y=0){prop(g,'Flower_3_Group',x,z,size,y);prop(g,'Grass_Wispy_Short',x+.19,z-.17,size*.7,y);}
 function planter(g,x,z,w=.65,y=1.19){box(g,x,y+.1,z,w,.2,.35,M.wood);box(g,x,y+.205,z,w-.07,.02,.28,M.soil);prop(g,'Bush_Common_Flowers',x,z,w*.95,y+.21);}
 function terrace(g,garden){
@@ -30,12 +34,14 @@ function terrace(g,garden){
  box(g,0,.53,1.39,.36,.78,.03,M.dark);box(g,0,.69,1.413,.24,.4,.03,M.glow);
  if(garden){planter(g,-.58,1.1);planter(g,.58,1.1);planter(g,0,.48,.7);prop(g,'CommonTree_3',-.55,.52,.7,1.25);flowers(g,.6,.6,.4,1.25);box(g,0,1.28,1.16,.32,.06,.27,M.wood);}
 }
-function building(g,type,rotation,garden,variant=0){
+function building(g,type,rotation,garden,variant=0,grade){
  const b=new THREE.Group();g.add(b);b.rotation.y=rotation*Math.PI/3;
- if(type==='atelier'){prop(b,'House_3',0,-.45,2.25);terrace(b,garden);}
- else {prop(b,variant>1?'House_2':'House_1',0,-.12,2.65);prop(b,'Barrel',1,.65,.32);flowers(b,-.9,.94,.48);}
+ let house;
+ if(type==='atelier'){house=prop(b,'House_3',0,-.45,2.25);prepareWorkshop(house);terrace(b,garden);}
+ else {house=prop(b,variant>1?'House_2':'House_1',0,-.12,2.65);prop(b,'Barrel',1,.65,.32);flowers(b,-.9,.94,.48);}
+ g.userData.wear=applyBuildingWear(house,grade);
  // Warm ground-floor lanterns frame the entry; upper windows use the asset's framed geometry.
- lamp(b,-.95,1.1);lamp(b,.95,1.1);
+ lamp(b,-.95,1.1,0,grade);lamp(b,.95,1.1,0,grade);
  box(b,0,.03,1.5,.75,.06,.7,M.path);
 }
 
@@ -48,7 +54,8 @@ export const villageReady=Promise.all([loader.loadAsync(import.meta.env.BASE_URL
 // Keep startup responsive while reporting asset failure through the game's existing loader.
 villageReady.catch(()=>{});
 export function makeBuilding(cells,plan,options={}){
- const group=new THREE.Group(),keys=new Set(cells.map(c=>c.join(',')));
+ const group=new THREE.Group();group.userData.wear={grade:options.grade??'A+',value:wearForGrade(options.grade)};
+ const keys=new Set(cells.map(c=>c.join(',')));
  const xs=cells.map(c=>c[0]),zs=cells.map(c=>c[2]),height=Math.max(...cells.map(c=>c[1]+1));
  const cx=(Math.min(...xs)+Math.max(...xs))/2,cz=(Math.min(...zs)+Math.max(...zs))/2;
  const width=Math.max(...xs)-Math.min(...xs)+1,depth=Math.max(...zs)-Math.min(...zs)+1;
@@ -57,7 +64,7 @@ export function makeBuilding(cells,plan,options={}){
  function populate(){
   if(dead)return;
   const raw=new THREE.Group();const type=plan.index===1?'atelier':'cottage';
-  building(raw,type,0,!!options.garden,plan.index===2?2:0);
+  building(raw,type,0,!!options.garden,plan.index===2?2:0,options.grade);group.userData.wear=raw.userData.wear;
   if(options.garden&&type!=='atelier'){
    // A supported terrace annex keeps the prototype's pitched roof intact.
    const annex=new THREE.Group();annex.scale.setScalar(.68);annex.position.set(0,0,.55);raw.add(annex);terrace(annex,true);
@@ -70,5 +77,5 @@ export function makeBuilding(cells,plan,options={}){
  }
  function reveal(t){progress=t;clip.constant=-.2+t*(maxY+.8);for(const m of materials){const complete=t>=1;if(complete&&m.clippingPlanes){m.clippingPlanes=null;m.needsUpdate=true;}}}
  const ready=loaded?(populate(),Promise.resolve()):villageReady.then(populate);
- return {group,keys,get maxY(){return maxY;},get footprint(){return footprint;},ready,reveal,dispose(){dead=true;materials.forEach(m=>m.dispose());group.traverse(o=>{if(o.geometry&&!o.geometry.userData.shared)o.geometry.dispose();});}};
+ return {group,keys,get maxY(){return maxY;},get footprint(){return footprint;},ready,reveal,dispose(){dead=true;const textures=new Set();materials.forEach(m=>{if(m.map?.userData?.wearTexture)textures.add(m.map);m.dispose();});textures.forEach(t=>t.dispose());group.traverse(o=>{if(o.geometry&&!o.geometry.userData.shared)o.geometry.dispose();});}};
 }
