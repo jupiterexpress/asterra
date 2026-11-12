@@ -1,0 +1,2 @@
+import {defineConfig} from '@playwright/test';
+export default defineConfig({testDir:'./tests',testMatch:'**/*.spec.js',timeout:180000,workers:1,webServer:{command:'npm run preview',url:'http://127.0.0.1:4190/',reuseExistingServer:!process.env.CI,timeout:30000},use:{baseURL:'http://127.0.0.1:4190',viewport:{width:1440,height:900},launchOptions:{...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{}),args:['--use-gl=angle','--use-angle=swiftshader','--enable-webgl','--ignore-gpu-blocklist']}}});
