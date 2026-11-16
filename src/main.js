@@ -21,6 +21,7 @@ import { Powers } from './powerups.js';
 import { initScenery, updateScenery } from './scenery.js';
 import { Bonus } from './bonus.js';
 import { Home } from './home.js';
+import { Analytics } from './analytics.js';
 
 /* =====================================================================
    DAILY SEED — inject the day's seed into CFG before reset() is called
@@ -84,6 +85,8 @@ setDayNum(DAY);
 //   Returning   -> home (never straight into a contract).
 // Anyone with saved contract progress counts as returning, even if an older build never set the tutorial flag.
 const returning = readSave('polycube-tutorial-complete') === '1';
+Analytics.init();
+Analytics.track('app_open', { returning });
 if (returning) Home.show();
 else if(readSave('asterra-opening-complete')==='1')Tutorial.start();
 else Opening.start();

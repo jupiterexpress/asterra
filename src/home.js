@@ -7,6 +7,7 @@ import {Store} from '../shared/store.js';
 import {catalog,validate,siteError,isLanding,key} from '../city/state.js';
 import {createWorld} from '../city/world.js';
 import {openSettings} from './ui.js';
+import {Analytics} from './analytics.js';
 const $=id=>document.getElementById(id);
 export const Home={
  api:null,world:null,worldPromise:null,mode:'overview',selected:null,hover:null,tool:'land',rotation:0,index:0,clock:0,
@@ -22,7 +23,7 @@ export const Home={
   $('hubReset').onclick=()=>$('hubResetDialog').showModal();
   $('hubSettings').onclick=()=>openSettings();
   $('hubResetCancel').onclick=()=>$('hubResetDialog').close();
-  $('hubResetConfirm').onclick=()=>{Store.reset();location.reload();};
+  $('hubResetConfirm').onclick=()=>{Analytics.track('new_game',{},{send_instantly:true});Store.reset();location.reload();};
   $('hubInspectBuilt').onclick=()=>{const site=Store.data.completed[this.index]?.site;if(site)this.world?.focus(...site);this.setMode('overview');};
   $('contractBack').onclick=()=>this.show();$('districtHome').onclick=()=>this.show();
   for(const [tool,item] of Object.entries(catalog)){const b=document.createElement('button');b.dataset.tool=tool;b.innerHTML=`<i aria-hidden="true">${item.icon}</i><span>${item.name}</span><small>◇ ${item.price.toLocaleString()}</small>`;b.onclick=()=>{this.tool=tool;this.selected=null;this.hover=null;this.render();};$('hubCatalog').append(b);}
@@ -83,7 +84,7 @@ export const Home={
  },
  confirm(){if(!this.selected)return;const error=this.error(this.selected);if(error){this.message(error);return;}const{q,r}=this.selected;
   if(this.mode==='site'){const error=Store.reserve(this.index,q,r);if(error){this.message(error);return;}Contract.index=this.index;this.hide();Contract.start();}
-  else {const result=Store.buy(this.tool,q,r,this.rotation);if(!result.ok){this.message(result.error);return;}this.world.rebuild(Store.data.city);this.selected=null;this.hover=null;this.render();this.message(`${catalog[this.tool].name} placed · ${catalog[this.tool].price.toLocaleString()} coins spent · saved.`);}
+  else {const result=Store.buy(this.tool,q,r,this.rotation);if(!result.ok){this.message(result.error);return;}Analytics.track('shop_purchase',{item:this.tool});this.world.rebuild(Store.data.city);this.selected=null;this.hover=null;this.render();this.message(`${catalog[this.tool].name} placed · ${catalog[this.tool].price.toLocaleString()} coins spent · saved.`);}
  },
  cancel(){this.selected=null;this.hover=null;this.render();this.message('Preview cancelled. No coins spent.');},
  tick(dt){if(!this.world)return;const now=performance.now();const elapsed=this.lastFrame?Math.min((now-this.lastFrame)/1000,1):0;this.lastFrame=now;if(!document.hidden)Store.data.city.elapsed+=elapsed;this.world.tick(matchMedia('(prefers-reduced-motion: reduce)').matches?0:Store.data.city.elapsed);this.clock+=dt;if(this.clock>1){this.clock=0;const c=this.world.counts();$('hubLife').textContent=`${Object.keys(Store.data.city.tiles).length} hexes · ${c.residents} neighbors · ${c.fish} pond fish`;if($('hubMoney').textContent!==Store.data.coins.toLocaleString())this.render();}},

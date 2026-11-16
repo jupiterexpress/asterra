@@ -7,6 +7,7 @@ import { scene } from './scene.js';
 import { CONTRACTS, voxelSVG } from './blueprints.js';
 import { makeBuilding, exterior } from './building.js';
 import { AudioFX } from './audio.js';
+import { Analytics } from './analytics.js';
 
 const $ = id => document.getElementById(id);
 const guide = new THREE.Group(); scene.add(guide);
@@ -68,6 +69,7 @@ export const Contract = {
     $('contractBrief').hidden = true; $('contractHUD').hidden = false;
     $('contractName').textContent = `${this.index+1} / 3 · ${p.short}`; $('hint').classList.add('gone');
     document.body.classList.add('contract-playing'); this.makeGuide(); this.update();
+    Analytics.track('contract_started', { contract: index + 1 });
   },
   makeGuide() {
     const { geometry } = exterior(this.plan.cells);
@@ -128,6 +130,7 @@ export const Contract = {
     this.result = { complete, density, grade, reward, cells, why: this.why || why };
     if(complete)Store.queueResult(this.index,this.result);
     this.why = '';
+    Analytics.track(complete ? 'contract_completed' : 'contract_failed', { contract: this.index + 1, grade: this.result.grade, reward: this.result.reward, density_pct: Math.round(density * 100), why: this.result.why || 'filled' });
     $('controls').hidden = true; $('finishBuild').hidden = true; guide.visible = false;
     if (!complete) { this.showResults(); return; }
     this.building = makeBuilding(cells, this.plan, {grade}); scene.add(this.building.group);

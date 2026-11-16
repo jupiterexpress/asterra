@@ -6,6 +6,7 @@ import { CFG } from './config.js';
 import { Poly, applyRot, Y90, shapeKey, stanceKey } from './poly.js';
 import { Movement } from './movement.js';
 import { scene } from './scene.js';
+import { Analytics } from './analytics.js';
 
 const $ = id => document.getElementById(id);
 const base = Poly.normalize([[0, 0, 0], [1, 0, 0], [2, 0, 0], [2, 0, 1]]).cells;
@@ -132,6 +133,7 @@ export const Tutorial = {
     $('controls').hidden = true;
   },
   proceed() {
+    Analytics.track('tutorial_completed');
     Store.profile('tutorial',true);
     this.api.home();
   },
