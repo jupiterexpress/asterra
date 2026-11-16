@@ -14,7 +14,7 @@ export const Analytics = {
     try {
       posthog.init(KEY, {
         api_host: HOST,
-        person_profiles: 'identified_only',
+        person_profiles: 'always',
         capture_pageview: false,
         autocapture: false,
         disable_session_recording: true,
