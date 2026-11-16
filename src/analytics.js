@@ -1,6 +1,6 @@
 // Product analytics (PostHog). Silent unless VITE_POSTHOG_KEY is set at build time.
 // Never changes what the player sees or how the game plays: no autocapture, no
-// session recording, no surveys, no pageviews, and every call is guarded.
+// session recording, no surveys, and every call is guarded.
 import posthog from 'posthog-js';
 
 const KEY = import.meta.env.VITE_POSTHOG_KEY;
@@ -15,7 +15,7 @@ export const Analytics = {
       posthog.init(KEY, {
         api_host: HOST,
         person_profiles: 'always',
-        capture_pageview: false,
+        capture_pageview: true,
         autocapture: false,
         disable_session_recording: true,
         disable_surveys: true,

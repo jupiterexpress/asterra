@@ -30,7 +30,7 @@ Every event carries `app: "asterra"`.
 
 ## What is deliberately off
 
-Autocapture, session recording, surveys, and automatic pageviews are all disabled. Analytics only sends the events listed above, so it cannot change what the player sees or how the game plays.
+Autocapture, session recording, and surveys are disabled. Analytics sends one automatic pageview per launch (for PostHog's Active users and Web analytics views) plus the events listed above, so it cannot change what the player sees or how the game plays.
 
 ## Privacy notes
 
