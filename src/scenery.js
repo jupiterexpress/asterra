@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { scene, lin } from './scene.js';
 import { baseRect } from './world.js';
+import { posthogLogger } from './posthog-logger.js';
 
 /* =====================================================================
    SCENERY — purely cosmetic. A floating-village backdrop built from
@@ -199,7 +200,10 @@ export function initScenery() {
     dressMainIsland();
     buildIslets();
     loaded = true;
-  }, undefined, err => console.warn('scenery failed to load — playing without it', err));
+  }, undefined, err => {
+    console.warn('scenery failed to load — playing without it', err);
+    posthogLogger.warn('scenery asset unavailable');
+  });
 }
 
 // called after the baseplate is rebuilt (new contract, tutorial, restart)

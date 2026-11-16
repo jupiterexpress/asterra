@@ -38,7 +38,7 @@ export const Powers = {
     $('tileOptions').addEventListener('click', e => {
       const button = e.target.closest('[data-tile]'); if (button) this.toggleTile(Number(button.dataset.tile));
     });
-    Bonus.init({ placed: () => { this.spend(); this.api.update(); }, changed: () => this.api.update() });
+    Bonus.init({ placed: () => { this.spend(); window.posthog?.capture('powerup_used', { powerup: 'add_block' }); this.api.update(); }, changed: () => this.api.update() });
   },
   toggleTile(i) {
     if (!shapes[i]) return;
@@ -49,7 +49,7 @@ export const Powers = {
   confirmTiles() {
     if (!this.ready || this.selected.length !== 3) return;
     S.tileQueue = this.selected.map(i => shapes[i].cells.map(c => [...c]));
-    this.spend(); this.close(); this.api.update();
+    this.spend(); window.posthog?.capture('powerup_used', { powerup: 'tile_choice' }); this.close(); this.api.update();
   },
   notifyReady() {
     // Native iPhone haptics; browsers with the Vibration API buzz briefly. Everywhere else the visual alert carries it.
@@ -90,6 +90,7 @@ export const Powers = {
     if (kind === 'freeze') {
       if (!this.api.freeze(Math.max(1, CFG.powerups.freeze.seconds))) return false;
       this.spend();
+      window.posthog?.capture('powerup_used', { powerup: 'freeze_time' });
     }
     if (kind === 'block') {
       // the meter is spent only once the block is actually placed; Esc backs out and keeps the powerup

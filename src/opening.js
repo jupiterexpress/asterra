@@ -1,5 +1,6 @@
 import { S } from './state.js';
 import { createOpeningScene } from './opening-scene.js';
+import { posthogLogger } from './posthog-logger.js';
 
 const $ = id => document.getElementById(id);
 export const readSave = key => { try { return localStorage.getItem(key); } catch { return null; } };
@@ -74,6 +75,8 @@ export const Opening = {
     if (!this.active) return;
     if (this.chapter < chapters.length - 1) { this.show(this.chapter + 1); return; }
     writeSave('asterra-opening-complete', '1');
+    window.posthog?.capture('onboarding_completed');
+    posthogLogger.info('onboarding completed');
     this.active = false; S.screen = '';
     $('opening').hidden = true; document.body.classList.remove('opening-active');
     this.api.tutorial();

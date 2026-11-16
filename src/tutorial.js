@@ -51,6 +51,7 @@ export const Tutorial = {
     $('hint').classList.add('gone');
   },
   challenge() {
+    window.posthog?.capture('tutorial_challenge_started');
     this.prepare();
     this.api.reset(true);
     this.mode = 'challenge'; this.idle = 0; this.stage = -1;
@@ -124,6 +125,7 @@ export const Tutorial = {
     if (this.mode !== 'challenge') return;
     if (!stable) { this.challenge(); return; }
     this.mode = 'complete'; marker.visible = false;
+    window.posthog?.capture('tutorial_challenge_completed');
     $('tutorialChallenge').hidden = true;
     $('tutorialDone').hidden = false;
     $('controls').hidden = true;

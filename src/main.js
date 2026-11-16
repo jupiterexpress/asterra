@@ -23,6 +23,7 @@ import { Powers } from './powerups.js';
 import { initScenery, updateScenery } from './scenery.js';
 import { Bonus } from './bonus.js';
 import { Home } from './home.js';
+import { posthogLogger } from './posthog-logger.js';
 
 /* =====================================================================
    DAILY SEED — inject the day's seed into CFG before reset() is called
@@ -87,6 +88,8 @@ setDayNum(DAY);
 const returning = readSave('polycube-tutorial-complete') === '1' || Contract.nextIndex > 0 || Contract.coins > 0;
 if (returning) Home.show();
 else Opening.start();
+
+window.addEventListener('load', () => posthogLogger.info('game client ready', { returning_player: returning }), { once: true });
 
 resize();
 Cam.update(1);

@@ -91,6 +91,11 @@ export const Contract = {
     this.api.reset(); this.savedCfg = config;
     this.run = { quick: 0, penalty: 0 };
     this.active = true; this.paid = false; this.result = null; this.finishRequested = false;
+    window.posthog?.capture('contract_started', {
+      contract_index: this.index + 1,
+      contract_id: p.short,
+      is_rebuild: this.index < this.nextIndex,
+    });
     $('contractBrief').hidden = true; $('contractHUD').hidden = false;
     $('contractName').textContent = `${this.index+1} / 3 · ${p.short}`; $('hint').classList.add('gone');
     document.body.classList.add('contract-playing'); this.makeGuide(); this.update();
@@ -180,6 +185,15 @@ export const Contract = {
       this.completed[this.index] = { cells: r.cells, grade: r.grade };
       this.addCoins(r.reward, `${this.plan.short} · grade ${r.grade}`); this.persist();   // reward + unlock are saved together
     }
+    window.posthog?.capture(r.complete ? 'contract_completed' : 'contract_failed', {
+      contract_index: this.index + 1,
+      contract_id: this.plan.short,
+      completion_percent: Math.round(this.filled() / this.plan.cells.length * 100),
+      density_percent: Math.round(r.density * 100),
+      grade: r.grade,
+      end_reason: r.why,
+      reward: r.reward,
+    });
     $('buildReveal').hidden = true; $('end').hidden = false;
     document.body.classList.remove('building-reveal'); document.body.classList.add('contract-results');
     $('endTitle').textContent = r.complete ? this.plan.name : 'LET’S TRY THAT AGAIN';
